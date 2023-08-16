@@ -10,6 +10,7 @@
 
 #define FETCH_COUNT 5
 #define OUTPUT_CACHE 10000
+#define READ_COUNT 10000
 
 ThreadPool* thread_pool_create(int n_threads, int input_length, int output_length) {
 	ThreadPool* retval = calloc(1, sizeof(ThreadPool));
@@ -19,6 +20,7 @@ ThreadPool* thread_pool_create(int n_threads, int input_length, int output_lengt
 	retval->input_index = 0;
 	retval->output_length = output_length;
 	retval->mode = OutputCount;
+	retval->input_file = NULL;
 	
 	retval->next_update_index = -1;
 	
@@ -35,6 +37,10 @@ void thread_pool_destroy(ThreadPool* pool) {
 		free(pool->write_keys);
 		spacemap_destroy(pool->spacemap);
 	}
+	
+	if (pool->input_file != NULL) {
+		free(pool->input_keys);
+	}
 
 	free(pool);
 }
@@ -42,6 +48,12 @@ void thread_pool_destroy(ThreadPool* pool) {
 void thread_pool_set_input_keys(ThreadPool* pool, Key* input_keys, uint64_t input_count) {
 	pool->input_keys = input_keys;
 	pool->input_count = input_count;
+}
+
+void thread_pool_set_input_file(ThreadPool* pool, FILE* file) {
+	pool->input_file = file;
+	
+	pool->input_keys = calloc(READ_COUNT, sizeof(Key));
 }
 
 void thread_pool_set_output_keys(ThreadPool* pool, Key* output_keys) {
@@ -79,25 +91,58 @@ void thread_pool_update_progress(ThreadPool* pool) {
 	}
 }
 
+int thread_pool_get_fetch_count(ThreadPool* pool) {
+	uint64_t new_index = pool->input_index + FETCH_COUNT;
+	new_index = new_index >= pool->input_count ? pool->input_count : new_index;
+	int count = new_index - pool->input_index;
+	
+	return count;
+}
+
 int thread_pool_fetch_seeds(ThreadPool* pool, Key** fetched_keys) {
 	pthread_mutex_lock(&pool->input_lock);	
+		
+	int count = thread_pool_get_fetch_count(pool);
+	
+	if (count == 0 && pool->input_file != NULL) {
+		thread_pool_read_file(pool);
+		count = thread_pool_get_fetch_count(pool);
+	}
 	
 	*fetched_keys = &pool->input_keys[pool->input_index];
 	
-	uint64_t new_index = pool->input_index + FETCH_COUNT;
-	new_index = new_index >= pool->input_count ? pool->input_count : new_index;
-	
-	int count = new_index - pool->input_index;
-	
-	pool->input_index = new_index;
+	pool->input_index += count;
 	
 	if (pool->next_update_index >= 0) {
 		thread_pool_update_progress(pool);
 	}
-	
+		
 	pthread_mutex_unlock(&pool->input_lock);
 	
 	return count;
+}
+
+uint64_t thread_pool_read_file(ThreadPool* pool) {
+	size_t raw_size = raw_key_size(pool->input_length);
+	size_t in_buf_size = READ_COUNT * raw_size;
+	char buffer[in_buf_size];
+	
+	size_t read_count = 0;
+	
+	read_count = fread(buffer, sizeof(char), in_buf_size, pool->input_file);
+	
+	if (read_count == 0) return 0;
+	
+	size_t n_read = read_count / raw_size;
+	
+	for (uint64_t i = 0; i < n_read; i++) {	
+		pool->input_keys[i] = decompress(&buffer[i * raw_size], pool->input_length);
+	}
+	
+	pool->input_count = n_read;
+	pool->input_index = 0;
+	
+	return n_read;
 }
 
 void thread_pool_write_file(ThreadPool* pool, uint64_t write_count) {

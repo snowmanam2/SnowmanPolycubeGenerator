@@ -7,9 +7,24 @@
 #define SINGLE_THREAD_LENGTH 9
 #define N_THREADS 6
 
+void print_usage() {
+	printf("Usage: polycube_generator <size> [options...]\n");
+}
+
+char* get_value(int* index, int argc, char** argv) {
+	if (*index + 1 >= argc) {
+		printf("Flag %s expects a value\n", argv[*index]);
+		return NULL;
+	}
+	
+	*index += 1;
+	
+	return argv[*index];
+}
+
 int main (int argc, char** argv) {
 	if (argc < 2) {
-		printf("Usage: polycube_generator <size> [output_file]\n");
+		print_usage();
 		return 0;
 	}
 	
@@ -21,57 +36,120 @@ int main (int argc, char** argv) {
 	if (new_length < 3) {
 		printf("Length must be at least 3\n");
 		return 0;
-	} else if (new_length > 20) {
-		printf("Length above 20 not implemented\n");
+	} else if (new_length > 30) {
+		printf("Length above 30 not implemented\n");
+		return 0;
 	}
 	
 	FILE* output_file = NULL;
+	FILE* input_file = NULL;
+		
+	int n_threads = N_THREADS;
 	
-	if (argc >= 3) {
-		output_file = fopen(argv[2], "wb");
+	for (int i = 2; i < argc; i++) {
+		if(strcmp(argv[i], "-t") == 0) {
+			char* value = get_value(&i, argc, argv);
+			
+			if (value == NULL) return 0;
+			int result = sscanf(value, "%d", &n_threads);
+			
+			if (result == 0) {
+				printf("Invalid number of threads\n");
+				return 0;
+			}
+		} else if (strcmp(argv[i], "-i") == 0) {
+			char* value = get_value(&i, argc, argv);
+			
+			if (value == NULL) return 0;
+			
+			input_file = fopen(value, "rb");
+		} else if (strcmp(argv[i], "-o") == 0) {
+			char* value = get_value(&i, argc, argv);
+			
+			if (value == NULL) return 0;
+			
+			output_file = fopen(value, "wb");
+		} else {
+			printf("Unrecognized argument \"%s\"\n", argv[i]);
+			print_usage();
+			return 0;
+		}
 	}
 	
-	int target_length = new_length < SINGLE_THREAD_LENGTH ? new_length : SINGLE_THREAD_LENGTH;
-	
-	ThreadPool* pool = thread_pool_create(1, 2, target_length);
-	
-	Key start;
-	Point p;
-	p.data[0] = 1;
-	p.data[1] = 1;
-	p.data[2] = 1;
-	p.data[3] = 0;
+	char input_length = 0;
+	if (input_file != NULL) {
+		int result = fread(&input_length, 1, 1, input_file);
 		
-	start.data[0] = p;
-	p = get_point_offset(p, 0);
-	start.data[1] = p;
-	
-	start.length = 2;
-	start.source_index = 0;
-	
-	thread_pool_set_input_keys(pool, &start, 1);
+		if (result == 0) {
+			fclose(input_file);
+			printf("Unable to read cache file\n");
+		} else if (input_length < 3) {
+			fclose(input_file);
+			printf("Note: Ignoring cache file with unsupported length %d (greater than target %d)\n", input_length, new_length);
+		} else if (input_length > new_length) {
+			fclose(input_file);
+			printf("Note: Ignoring cache file with length %d (greater than target %d)\n", input_length, new_length);
+		}
+		else if (input_length == new_length) {
+			fclose(input_file);
+			printf("Note: Ignoring cache file with length %d (equal to target %d)\n", input_length, new_length);
+		}
+	}
 	
 	Key* output_keys = calloc(100000, sizeof(Key));
+	uint64_t n_generated = 0;
 	
-	thread_pool_set_output_keys(pool, output_keys);
-	
-	if (new_length <= SINGLE_THREAD_LENGTH && output_file != NULL) {
-		thread_pool_set_output_file(pool, output_file);
+	if (input_length < SINGLE_THREAD_LENGTH) {
+		int target_length = new_length < SINGLE_THREAD_LENGTH ? new_length : SINGLE_THREAD_LENGTH;
+		
+		int start_length = input_file != NULL ? input_length : 2;
+		
+		ThreadPool* pool = thread_pool_create(1, start_length, target_length);
+		
+		if (input_file == NULL) {
+			Key start;
+			Point p;
+			p.data[0] = 1;
+			p.data[1] = 1;
+			p.data[2] = 1;
+			p.data[3] = 0;
+			
+			start.data[0] = p;
+			p = get_point_offset(p, 0);
+			start.data[1] = p;
+			
+			start.length = 2;
+			start.source_index = 0;
+			
+			thread_pool_set_input_keys(pool, &start, 1);
+		} else {
+			thread_pool_set_input_file(pool, input_file);
+		}
+		
+		thread_pool_set_output_keys(pool, output_keys);
+		
+		if (new_length <= SINGLE_THREAD_LENGTH && output_file != NULL) {
+			thread_pool_set_output_file(pool, output_file);
+		}
+		
+		n_generated = thread_pool_run(pool);
+		
+		thread_pool_destroy(pool);
 	}
 	
-	uint64_t n_generated = thread_pool_run(pool);
-		
-	thread_pool_destroy(pool);
-		
 	if (new_length > SINGLE_THREAD_LENGTH) {
-		pool = thread_pool_create(N_THREADS, SINGLE_THREAD_LENGTH, new_length);
-		thread_pool_set_input_keys(pool, output_keys, n_generated);
+		ThreadPool* pool = thread_pool_create(n_threads, SINGLE_THREAD_LENGTH, new_length);
+		
+		if (input_file != NULL && input_length >= SINGLE_THREAD_LENGTH) {
+			thread_pool_set_input_file(pool, input_file);
+		} else {
+			thread_pool_set_input_keys(pool, output_keys, n_generated);
+			thread_pool_enable_updates(pool);
+		}
 		
 		if (output_file != NULL) {
 			thread_pool_set_output_file(pool, output_file);
 		}
-		
-		thread_pool_enable_updates(pool);
 		
 		n_generated = thread_pool_run(pool);
 		thread_pool_destroy(pool);
@@ -86,6 +164,7 @@ int main (int argc, char** argv) {
 	free(output_keys);
 	
 	if (output_file != NULL) fclose(output_file);
+	if (input_file != NULL) fclose(input_file);
 	
 	return 0;
 }
