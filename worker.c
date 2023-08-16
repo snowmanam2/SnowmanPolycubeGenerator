@@ -10,7 +10,6 @@ void worker_create(WorkerData* wdata, ThreadPool* pool, int input_length, int ou
 	wdata->pool = pool;
 	wdata->input_length = input_length;
 	wdata->output_length = output_length;
-	wdata->cache_count = 0;
 	wdata->total = 0;
 	
 	wdata->spacemap = spacemap_create();

@@ -7,13 +7,11 @@
 #ifndef WORKER_H
 #define WORKER_H
 
-#define CACHE_SIZE 2120
-#define CACHE_THRESHOLD 2000
 
 typedef struct {
 	Key* seed_keys;
 	int seed_count;
-	Key output_keys[120];
+	Key output_keys[180];
 	int output_count;
 	int new_length;
 	int index;
@@ -25,7 +23,6 @@ typedef struct {
 	GenerationData* generation_data;
 	uint8_t* spacemap;
 	ThreadPool* pool;
-	Key cache[CACHE_SIZE];
 	int cache_count;
 	uint64_t total;
 } WorkerData;

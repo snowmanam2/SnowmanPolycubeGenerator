@@ -17,7 +17,7 @@ typedef struct {
 } PointData;
 
 typedef struct {
-	Point data[20];
+	Point data[30];
 	uint8_t source_index;
 	uint8_t length;
 } Key;
