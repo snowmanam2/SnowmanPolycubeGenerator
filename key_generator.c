@@ -133,9 +133,9 @@ Key get_offset_key(Key key, size_t length, int face) {
 // Used for initial comparison
 Key get_maximum_key(size_t length) {
 	Point p;
-	p.data[0] = 25;
-	p.data[1] = 25;
-	p.data[2] = 25;
+	p.data[0] = 32;
+	p.data[1] = 32;
+	p.data[2] = 32;
 	p.data[3] = 0;
 	
 	Key retval;
