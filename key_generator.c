@@ -3,31 +3,41 @@
 #include "spacemap.h"
 
 #define NUM_ROTATIONS 24
+#define ROT_ALL 0xFFFFFF
+#define ROT_X   0xFF
+#define ROT_Y   0xFF00
+#define ROT_Z   0xFF0000
+#define ROT_XY  0xF
+#define ROT_XZ  0xF0
+#define ROT_YX  0xF00
+#define ROT_YZ  0xF000
+#define ROT_ZX  0xF0000
+#define ROT_ZY  0xF00000
 
 const uint8_t rotations_lut[][3] = {
-	{0,1,2}, // 0 x
-	{0,5,1},
+	{0,1,2}, // 0 x y (0xF)
 	{0,4,5},
-	{0,2,4},
-	{3,1,5}, // 4 x flip
-	{3,2,1},
+	{3,1,5}, 
 	{3,4,2},
+	{0,2,4}, // 4 x z (0xF0)
+	{0,5,1},
+	{3,2,1},
 	{3,5,4},
-	{1,0,5}, // 8 y
-	{1,2,0},
+	{1,0,5}, // 8 y x (0xF00)
 	{1,3,2},
-	{1,5,3},
-	{4,0,2}, // 12 y flip
-	{4,5,0},
+	{4,0,2},
 	{4,3,5},
+	{1,2,0}, // 12 y z (0xF000)
+	{1,5,3}, 
 	{4,2,3},
-	{2,0,1}, // 16 z
-	{2,4,0},
+	{4,5,0},
+	{2,0,1}, // 16 z x (0xF0000)
 	{2,3,4},
-	{2,1,3},
-	{5,0,4}, // 20 z flip
-	{5,1,0},
+	{5,0,4},
 	{5,3,1},
+	{2,1,3}, // 20 z y (0xF00000)
+	{2,4,0},
+	{5,1,0},
 	{5,4,3}
 };
 
@@ -172,6 +182,19 @@ int get_expand_face(Point point, Point dim) {
 	return -1;
 }
 
+void create_candidates(Key key, size_t length, Point* candidates) {
+	
+	int index = 0;
+	for (int face = 0; face < 6; face++) {
+		for (size_t i = 0; i < length; i++) {
+			candidates[index] = get_point_offset(key.data[i], face);
+			index++;
+		}
+	}
+	
+	qsort(candidates, 6 * length, sizeof(Point), cmp_points);
+}
+
 // Generates relevant rotation keys for the given starting key
 // Returns a mask to test for which rotations were computed
 // We eliminate some rotations by looking at the dimensions
@@ -189,13 +212,22 @@ uint32_t create_rotation_keys(Key key, size_t length, Point dim, Key* rkeys) {
 	bigpoint.data[3] = 0;
 	
 	if ((d[0] == d[1]) && (d[0] == d[2])) {
-		rotation_bits = 0xFFFFFF;
-	} else if ((d[0] > d[1] && d[0] > d[2]) || d[1] == d[2]) {
-		rotation_bits = 0xFF;
-	} else if ((d[1] > d[0] && d[1] > d[2]) || d[0] == d[2]) {
-		rotation_bits = 0xFF00;
+		rotation_bits = ROT_ALL;
+	} else if (d[1] == d[2]) {
+		rotation_bits = ROT_X;
+	} else if (d[0] == d[2]) {
+		rotation_bits = ROT_Y;
+	} else if (d[0] == d[1]) {
+		rotation_bits = ROT_Z;
+	} else if (d[0] > d[1] && d[0] > d[2]) {
+		if (d[1] > d[2]) rotation_bits = ROT_XY;
+		else rotation_bits = ROT_XZ;
+	} else if (d[1] > d[0] && d[1] > d[2]) {
+		if (d[0] > d[2]) rotation_bits = ROT_YX;
+		else rotation_bits = ROT_YZ;
 	} else {
-		rotation_bits = 0xFF0000;
+		if (d[0] > d[1]) rotation_bits = ROT_ZX;
+		else rotation_bits = ROT_ZY;
 	}
 	
 	PointData pdata[length];
@@ -228,17 +260,7 @@ int generate(Key key, size_t new_length, Key* output) {
 	int n_candidates = old_length * 6;
 	Point candidates[n_candidates];
 	
-	// Generate initial candidates from existing key faces
-	int index = 0;
-	for (size_t i = 0; i < old_length; i++) {
-		for (int face = 0; face < 6; face++) {
-			candidates[index] = get_point_offset(key.data[i], face);
-			index++;
-		}
-	}
-	
-	// Sort candidates to allow for duplicate removal later
-	qsort(candidates, n_candidates, sizeof(Point), cmp_points);
+	create_candidates(key, old_length, candidates);
 	
 	// Generate all relevant rotated keys for inside dimensions
 	Point dimensions = get_dim(key, old_length);

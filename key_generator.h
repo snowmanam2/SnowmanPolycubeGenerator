@@ -5,8 +5,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-
-
 typedef union {
 	int8_t data[4];
 	int32_t value;
