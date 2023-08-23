@@ -240,9 +240,20 @@ uint32_t create_rotation_keys(Key key, size_t length, Point dim, Key* rkeys) {
 		if (!(rotation_bits & (1 << i))) continue;
 		
 		Point* kdata = rkeys[i].data;
+		const uint8_t* r = rotations_lut[i];
+		uint8_t r0 = r[0];
+		uint8_t r1 = r[1];
+		uint8_t r2 = r[2];
 		
 		for (size_t j = 0; j < length; j++) {
-			kdata[j] = rotate(pdata[j], i);
+			int8_t* o = kdata[j].data;
+			int8_t* p = pdata[j].data;
+			
+			o[0] = p[r0];
+			o[1] = p[r1];
+			o[2] = p[r2];
+			o[3] = 0;
+			
 		}
 		
 		network_sort((int*)kdata, length, cmp_points);
