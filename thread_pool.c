@@ -98,7 +98,7 @@ int thread_pool_get_fetch_count(ThreadPool* pool) {
 	return count;
 }
 
-int thread_pool_fetch_seeds(ThreadPool* pool, Key** fetched_keys) {
+int thread_pool_fetch_seeds(ThreadPool* pool, Key* fetched_keys) {
 	pthread_mutex_lock(&pool->input_lock);	
 		
 	int count = thread_pool_get_fetch_count(pool);
@@ -108,7 +108,7 @@ int thread_pool_fetch_seeds(ThreadPool* pool, Key** fetched_keys) {
 		count = thread_pool_get_fetch_count(pool);
 	}
 	
-	*fetched_keys = &pool->input_keys[pool->input_index];
+	memcpy(fetched_keys, &pool->input_keys[pool->input_index], count * sizeof(Key));
 	
 	pool->input_index += count;
 	

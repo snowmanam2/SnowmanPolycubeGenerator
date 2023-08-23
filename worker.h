@@ -7,6 +7,7 @@
 #ifndef WORKER_H
 #define WORKER_H
 
+#define WORKER_FETCH_COUNT 5
 
 typedef struct {
 	Key* seed_keys;

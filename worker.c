@@ -31,10 +31,13 @@ void worker_generation_data_create(WorkerData* wdata) {
 		if (i > 0) retval[i].seed_keys = retval[i-1].output_keys;
 	}
 	
+	retval[0].seed_keys = calloc(WORKER_FETCH_COUNT, sizeof(Key));
+	
 	wdata->generation_data = retval;
 }
 
 void worker_generation_data_destroy(WorkerData* wdata) {
+	free(wdata->generation_data[0].seed_keys);
 	free(wdata->generation_data);
 }
 
@@ -122,7 +125,7 @@ void* worker_thread_function(void* arg) {
 	while (1) {
 		worker_generation_data_init(wdata);
 		
-		int fetch_count = thread_pool_fetch_seeds(wdata->pool, &wdata->generation_data[0].seed_keys);
+		int fetch_count = thread_pool_fetch_seeds(wdata->pool, wdata->generation_data[0].seed_keys);
 				
 		if (fetch_count == 0) break;
 		

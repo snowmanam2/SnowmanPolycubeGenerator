@@ -41,7 +41,7 @@ void thread_pool_set_output_keys(ThreadPool* pool, Key* output_keys);
 void thread_pool_set_output_file(ThreadPool* pool, FILE* file);
 
 uint64_t thread_pool_read_file(ThreadPool* pool);
-int thread_pool_fetch_seeds(ThreadPool* pool, Key** fetch_keys);
+int thread_pool_fetch_seeds(ThreadPool* pool, Key* fetch_keys);
 void thread_pool_push_output(ThreadPool* pool, Key* output_keys, int output_count);
 
 void thread_pool_enable_updates(ThreadPool* pool);
