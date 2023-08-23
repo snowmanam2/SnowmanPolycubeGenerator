@@ -2,7 +2,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "key_generator.h"
+#include "key.h"
 
 #ifndef THREAD_POOL_H
 #define THREAD_POOL_H

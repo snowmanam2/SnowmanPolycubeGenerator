@@ -1,9 +1,22 @@
-#include "key_generator.h"
-#include "key_compression.h"
+#include "compression.h"
 #include "network_sort.h"
-#include "spacemap.h"
 #include <string.h>
 
+
+typedef struct {
+	int8_t data[3];
+} RawPoint;
+
+RawPoint raw_point_get_offset(RawPoint point, int face) {
+	int n = face % 3;
+	int offset = face < 3 ? 1 : -1;
+	
+	RawPoint retval = point;
+	
+	retval.data[n] += offset;
+	
+	return retval;
+}
 
 void write_bit(char* buffer, int bit) {
 	int byte = bit >> 3;
@@ -15,12 +28,11 @@ int read_bit(char* buffer, int bit) {
 	return buffer[byte] & (1 << (bit - (byte << 3)));
 }
 
-void normalize(Point* points, size_t length) {
-	Point min;
+void normalize(RawPoint* points, size_t length) {
+	RawPoint min;
 	min.data[0] = 100;
 	min.data[1] = 100;
 	min.data[2] = 100;
-	min.data[3] = 0;
 	
 	for (int i = 0; i < length; i++) {
 		for (int j = 0; j < 3; j++) {
@@ -41,7 +53,7 @@ void normalize(Point* points, size_t length) {
 // 6 bits for first point faces
 // 5 bits for face bits of each remaining point
 // omit last point
-size_t raw_key_size(size_t number) {
+size_t compression_key_size(size_t number) {
 
 	if (number < 2) return 1;
 	
@@ -68,21 +80,20 @@ int get_opposite_face(int face) {
 // 
 // Currently this reduces space consumption to 8 bytes or less for n=13
 // (Note the output contains exactly n-1 set bits with the rest left zero)
-size_t compress(Key key, uint8_t length, char* buffer, uint8_t* compression_places) {
+size_t compression_compress(Key key, uint8_t length, char* buffer, uint8_t* compression_places) {
 	
 	uint8_t point_index = 1;
 	int point_keys[length]; // place map keys based on order of point discovery
-	point_keys[0] = spacemap_get_key(key.data[0]);
+	point_keys[0] = key.data[0];
 	uint8_t faces[length]; // face numbers based on order of point discovery
 	faces[0] = 6; // bogus face that will yield a bogus opposite face that we can ignore
 	int ptkey = 0;
 	
 	int bit = 0;
-	const int* offsets_lut = spacemap_get_offsets();
+	const int* offsets_lut = point_get_offsets_lut();
 		
-	for (uint8_t i = 1; i < length; i++) {
-		ptkey = spacemap_get_key(key.data[i]);
-		compression_places[ptkey] = 1;
+	for (uint8_t i = 1; i < length; i++) {;
+		compression_places[key.data[i]] = 1;
 	}
 	
 
@@ -127,13 +138,15 @@ size_t compress(Key key, uint8_t length, char* buffer, uint8_t* compression_plac
 // all the faces as in the compression method.
 // After we have these points, we normalize and sort them
 // to conform to the "key" layout used in generation
-Key decompress(char* buffer, size_t length) {
-	Key retval;	
-	Point* points = retval.data;
+Key compression_decompress(char* buffer, size_t length) {
+	Key retval;
+	retval.length = length;
+	retval.data[0] = point_from_coords(1, 1, 1);
+		
+	RawPoint points[length];
 	points[0].data[0] = 1;
 	points[0].data[1] = 1;
 	points[0].data[2] = 1;
-	points[0].data[3] = 0;
 	int points_index = 1;
 	int faces[length]; // face numbers based on order of point discovery
 	faces[0] = 6; // bogus face that will yield a bogus opposite face that we can ignore
@@ -151,7 +164,7 @@ Key decompress(char* buffer, size_t length) {
 			
 			if (!result) continue;
 			
-			points[points_index] = get_point_offset(points[i], f);
+			points[points_index] = raw_point_get_offset(points[i], f);
 			faces[points_index] = f;
 			points_index++;
 		}
@@ -159,7 +172,14 @@ Key decompress(char* buffer, size_t length) {
 	
 	normalize(points, length);
 	
-	network_sort((int*)points, length, cmp_points);
+	for (int i = 0; i < length; i++) {
+		RawPoint p = points[i];
+		retval.data[i] = point_from_coords(p.data[0], p.data[1], p.data[2]);
+	}
+	
+	retval.length = length;
+	
+	network_sort(retval.data, length, point_compare);
 	
 	return retval;
 }

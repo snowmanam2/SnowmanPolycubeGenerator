@@ -1,9 +1,10 @@
 #include <stdio.h>
 
 #include "worker.h"
-#include "key_compression.h"
-#include "spacemap.h"
+#include "compression.h"
 #include "thread_pool.h"
+#include "generator.h"
+#include "point.h"
 
 void worker_create(WorkerData* wdata, ThreadPool* pool, int input_length, int output_length) {
 	
@@ -12,11 +13,11 @@ void worker_create(WorkerData* wdata, ThreadPool* pool, int input_length, int ou
 	wdata->output_length = output_length;
 	wdata->total = 0;
 	
-	wdata->spacemap = spacemap_create();
+	wdata->spacemap = calloc(POINT_SPACEMAP_SIZE, sizeof(uint8_t));
 }
 
 void worker_destroy(WorkerData* wdata) {
-	spacemap_destroy(wdata->spacemap);
+	free(wdata->spacemap);
 }
 
 void worker_generation_data_create(WorkerData* wdata) {
@@ -52,26 +53,28 @@ void worker_generate_level(GenerationData* gdata, uint8_t* spacemap) {
 	Key seed = gdata->seed_keys[gdata->index];
 	int new_length = gdata->new_length;
 		
-	int n_generated = generate(seed, gdata->new_length, gdata->output_keys);
-	qsort(gdata->output_keys, n_generated, sizeof(Key), cmp_keys);
+	int n_generated = generator_generate(seed, gdata->new_length, gdata->output_keys);
+	qsort(gdata->output_keys, n_generated, sizeof(Key), key_compare);
 	
 	int a = 0;
 	int last_output = 0;
-	Key last = get_maximum_key(new_length);
+	Key last = key_get_comparison_maximum(new_length);
 			
 	for (int j = 0; j < n_generated; j++) {
-		if (cmp_keys(&last, &gdata->output_keys[j]) == 0 && last_output) continue;
+		if (key_compare(&last, &gdata->output_keys[j]) == 0 && last_output) continue;
 		
 		last = gdata->output_keys[j];
 		last_output = 0;
+		
 			
-		if (has_larger_single_neighbor(gdata->output_keys[j], spacemap)) continue;
+		if (key_has_larger_single_neighbor(gdata->output_keys[j], spacemap)) continue;
 			
-		if (has_larger_connected_source(gdata->output_keys[j], spacemap)) continue;
+		if (key_has_larger_connected_source(gdata->output_keys[j], spacemap)) continue;
 			
 		gdata->output_keys[a] = gdata->output_keys[j];
 		a++;
 		last_output = 1;
+		
 	}
 		
 	gdata->output_count = a;

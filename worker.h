@@ -1,7 +1,7 @@
 #include <pthread.h>
 #include <stdint.h>
 
-#include "key_generator.h"
+#include "key.h"
 #include "thread_pool.h"
 
 #ifndef WORKER_H

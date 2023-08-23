@@ -4,8 +4,7 @@
 
 #include "thread_pool.h"
 #include "worker.h"
-#include "key_compression.h"
-#include "spacemap.h"
+#include "compression.h"
 
 
 #define FETCH_COUNT 5
@@ -35,7 +34,7 @@ void thread_pool_destroy(ThreadPool* pool) {
 	if (pool->mode == OutputFile) {
 		free(pool->output_keys);
 		free(pool->write_keys);
-		spacemap_destroy(pool->spacemap);
+		free(pool->spacemap);
 	}
 	
 	if (pool->input_file != NULL) {
@@ -68,7 +67,7 @@ void thread_pool_set_output_file(ThreadPool* pool, FILE* file) {
 	pool->output_keys = calloc(OUTPUT_CACHE + 1000, sizeof(Key));
 	pool->write_keys = calloc(OUTPUT_CACHE + 1000, sizeof(Key));
 	
-	pool->spacemap = spacemap_create();
+	pool->spacemap = calloc(POINT_SPACEMAP_SIZE, sizeof(uint8_t));
 	
 	pool->output_index = 0;
 	
@@ -123,7 +122,7 @@ int thread_pool_fetch_seeds(ThreadPool* pool, Key** fetched_keys) {
 }
 
 uint64_t thread_pool_read_file(ThreadPool* pool) {
-	size_t raw_size = raw_key_size(pool->input_length);
+	size_t raw_size = compression_key_size(pool->input_length);
 	size_t in_buf_size = READ_COUNT * raw_size;
 	char buffer[in_buf_size];
 	
@@ -136,7 +135,7 @@ uint64_t thread_pool_read_file(ThreadPool* pool) {
 	size_t n_read = read_count / raw_size;
 	
 	for (uint64_t i = 0; i < n_read; i++) {	
-		pool->input_keys[i] = decompress(&buffer[i * raw_size], pool->input_length);
+		pool->input_keys[i] = compression_decompress(&buffer[i * raw_size], pool->input_length);
 	}
 	
 	pool->input_count = n_read;
@@ -147,14 +146,14 @@ uint64_t thread_pool_read_file(ThreadPool* pool) {
 
 void thread_pool_write_file(ThreadPool* pool, uint64_t write_count) {
 	
-	int len = raw_key_size(pool->output_length);
+	int len = compression_key_size(pool->output_length);
 	
 	char buffer[len];
 	
 	for (uint64_t i = 0; i < write_count; i++) {
 		memset(buffer, 0, len);
 		
-		compress(pool->write_keys[i], pool->output_length, buffer, pool->spacemap);
+		compression_compress(pool->write_keys[i], pool->output_length, buffer, pool->spacemap);
 		
 		fwrite(buffer, sizeof(char), len, pool->output_file);
 	}

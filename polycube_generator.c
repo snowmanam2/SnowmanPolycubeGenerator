@@ -1,8 +1,10 @@
 #include <stdio.h>
 #include <time.h>
+#include <string.h>
 
-#include "key_generator.h"
+#include "generator.h"
 #include "thread_pool.h"
+#include "point.h"
 
 #define SINGLE_THREAD_LENGTH 9
 #define N_THREADS 6
@@ -108,14 +110,10 @@ int main (int argc, char** argv) {
 		
 		if (input_file == NULL) {
 			Key start;
-			Point p;
-			p.data[0] = 1;
-			p.data[1] = 1;
-			p.data[2] = 1;
-			p.data[3] = 0;
+			Point p = point_from_coords(1,1,1);
 			
 			start.data[0] = p;
-			p = get_point_offset(p, 0);
+			p = point_get_offset(p, 0);
 			start.data[1] = p;
 			
 			start.length = 2;

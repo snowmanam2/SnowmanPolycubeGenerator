@@ -1,9 +1,9 @@
 #include "network_sort.h"
 #include <stdlib.h>
 
-#define COMPARE_SWAP(a, b) {int x = base[a]; int y = base[b]; base[a] = x > y ? y : x; base[b] = x > y ? x : y;}
+#define COMPARE_SWAP(a, b) {uint16_t x = base[a]; uint16_t y = base[b]; base[a] = x > y ? y : x; base[b] = x > y ? x : y;}
 
-void network_sort(int* base, int length, int (*compare)(const void*, const void*)) {
+void network_sort(uint16_t* base, int length, int (*compare)(const void*, const void*)) {
 	switch(length) {
 		case 11:
 			network_sort11(base);
@@ -30,7 +30,7 @@ void network_sort(int* base, int length, int (*compare)(const void*, const void*
 			network_sort18(base);
 			break;
 		default:
-			qsort(base, length, sizeof(int), compare);
+			qsort(base, length, sizeof(uint16_t), compare);
 	}
 }
 
@@ -41,7 +41,7 @@ void network_sort(int* base, int length, int (*compare)(const void*, const void*
 // Higher implementations than 16 were built from the data in 
 // https://bertdobbelaere.github.io/sorting_networks.html
 
-void network_sort11(int* base) {
+void network_sort11(uint16_t* base) {
 	COMPARE_SWAP(0,1)
 	COMPARE_SWAP(2,3)
 	COMPARE_SWAP(4,5)
@@ -124,7 +124,7 @@ void network_sort11(int* base) {
 	COMPARE_SWAP(8,9)
 }
 
-void network_sort12(int* base) {
+void network_sort12(uint16_t* base) {
 	COMPARE_SWAP(0,1)
 	COMPARE_SWAP(2,3)
 	COMPARE_SWAP(4,5)
@@ -208,7 +208,7 @@ void network_sort12(int* base) {
 }
 
 
-void network_sort13(int* base) {
+void network_sort13(uint16_t* base) {
 	COMPARE_SWAP(0,1)
 	COMPARE_SWAP(2,3)
 	COMPARE_SWAP(4,5)
@@ -291,7 +291,7 @@ void network_sort13(int* base) {
 	COMPARE_SWAP(8,9)
 }
 
-void network_sort14(int* base) {
+void network_sort14(uint16_t* base) {
 	COMPARE_SWAP(0,1)
 	COMPARE_SWAP(2,3)
 	COMPARE_SWAP(4,5)
@@ -375,7 +375,7 @@ void network_sort14(int* base) {
 }
 
 
-void network_sort15(int* base) {
+void network_sort15(uint16_t* base) {
 	COMPARE_SWAP(0,1)
 	COMPARE_SWAP(2,3)
 	COMPARE_SWAP(4,5)
@@ -458,7 +458,7 @@ void network_sort15(int* base) {
 	COMPARE_SWAP(8,9)
 }
 
-void network_sort16(int* base) {
+void network_sort16(uint16_t* base) {
 	COMPARE_SWAP(0,1)
 	COMPARE_SWAP(2,3)
 	COMPARE_SWAP(4,5)
@@ -541,7 +541,7 @@ void network_sort16(int* base) {
 	COMPARE_SWAP(8,9)
 }
 
-void network_sort17(int* base) {
+void network_sort17(uint16_t* base) {
 	COMPARE_SWAP(0, 11)
 	COMPARE_SWAP(1, 15)
 	COMPARE_SWAP(2, 10)
@@ -615,7 +615,7 @@ void network_sort17(int* base) {
 	COMPARE_SWAP(12, 13)
 }
 
-void network_sort18(int* base) {
+void network_sort18(uint16_t* base) {
 	COMPARE_SWAP(0, 1)
 	COMPARE_SWAP(2, 3)
 	COMPARE_SWAP(4, 5)
