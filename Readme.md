@@ -8,7 +8,7 @@ A 3D polycube generator based on the Computerphile video and [this repository](h
 make all
 ```
 
-Note the current Makefile was written for Linux with GCC. The only external dependency is pthreads. It seems to work in Cygwin, though the executable is a bit slower.
+Note the current Makefile was written for Linux with GCC. The only external dependency is pthreads. It seems to work in Cygwin or MinGW, though the executable is a bit slower.
 
 ## Usage
 The following returns the number of 3D polycubes of length 5:
@@ -16,7 +16,7 @@ The following returns the number of 3D polycubes of length 5:
 ./polycube_generator 5
 ```
 
-For lengths larger than 9, the "-t" option allows specification of a number of compute threads. The default is 6 threads, shown here with 10 threads.
+For lengths larger than 9, the "-t" option allows specification of a number of compute threads. The default is 16 threads, shown here with 10 threads.
 ```bash
 ./polycube_generator 13 -n 10
 ```
@@ -53,14 +53,14 @@ The advantage of this method is we don't need to recanonize the combinations. I 
 
 ## Performance
 
-Using a rather dated FX-8350 processor with 6 computing threads on Ubuntu with no cache generation or input, measured cumulatively:
-- n=11 in 3 seconds
-- n=12 in 14 seconds
-- n=13 in 117 seconds
-- n=14 in 1119 seconds (19 minutes)
-- n=15 in 9291 seconds (2 hours 35 minutes)
+Using a rather dated FX-8350 processor with 16 computing threads on Ubuntu with no cache generation or input, measured cumulatively:
+- n=11 in 2 seconds
+- n=12 in 9 seconds
+- n=13 in 74 seconds
+- n=14 in 722 seconds (12 minutes)
+- n=15 in 5902 seconds (1 hour 38 minutes)
 
-Memory usage is typically around 5 MB.
+Memory usage is typically around 7 MB.
 
 ## Cache Files
 
