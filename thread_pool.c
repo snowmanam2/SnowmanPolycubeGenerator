@@ -82,8 +82,8 @@ void thread_pool_update_progress(ThreadPool* pool) {
 		double diff = difftime(time(NULL), pool->start_time);
 		double est_total = diff * pool->input_count / pool->input_index;
 		
-		printf("%ld%% ... (est. %.f seconds remaining)\n", 
-			100 * pool->input_index / pool->input_count,
+		printf("%d%% ... (est. %.f seconds remaining)\n", 
+			(int)(100 * pool->input_index / pool->input_count),
 			est_total - diff);
 		
 		pool->next_update_index += pool->input_count / 20;
