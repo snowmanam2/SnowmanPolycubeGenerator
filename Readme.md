@@ -1,12 +1,14 @@
 # Polycube Generator in C
 
-A 3D polycube generator based on the Computerphile video and [this repository](https://github.com/mikepound/opencubes). This version is written in C with some optimizations indicated below. Probably not the best implementation out there, but I wanted to try out some ideas.
+A 3D polycube generator based on the Computerphile video and [this repository](https://github.com/mikepound/opencubes). This version is written in C with some optimizations indicated below.
 
 ## Compiling
 
 ```bash
-make clean all
+make all
 ```
+
+Note the current Makefile was written for Linux with GCC. The only external dependency is pthreads. It seems to work in Cygwin, though the executable is a bit slower.
 
 ## Usage
 The following returns the number of 3D polycubes of length 5:
@@ -44,19 +46,21 @@ This is "hashtable-less" implementation similar to that described by [presseyt](
 3. Filter result of step 2 to only have unique values, saving the highest possible of the index of a in each q.
 4. For each q, check if there is any possible r at a higher index of q that can be removed while remaining a polycube. Otherwise output q.
 
-The advantage of this method is we don't need to recanonize the combinations. I started with a rather lazy implementation of steps 3 and 4:
+The advantage of this method is we don't need to recanonize the combinations. I used a rather lazy implementation of steps 3 and 4:
 1. Sort all generated q polycubes. Check the current q with the last q to eliminate duplicates.
 2. Use a fast "number of neighbors" check to eliminate the majority of higher duplicate r indexes. Specifically, if a cube in q only has 1 neighbor, it can safely be removed.
 3. If the neighbor check doesn't cancel the output, iteratively check all r values of index higher than a. We count the number of cubes that can be reached to make sure it is connected. 
 
 ## Performance
 
-Using a rather dated FX-8350 processor with 6 computing threads on Ubuntu with no cache generation or input:
+Using a rather dated FX-8350 processor with 6 computing threads on Ubuntu with no cache generation or input, measured cumulatively:
 - n=11 in 3 seconds
 - n=12 in 14 seconds
 - n=13 in 117 seconds
 - n=14 in 1119 seconds (19 minutes)
 - n=15 in 9291 seconds (2 hours 35 minutes)
+
+Memory usage is typically around 5 MB.
 
 ## Cache Files
 
@@ -89,10 +93,11 @@ Example n=4:
     abc
 
 ## Known Areas for Improvement
-- qsort [can be slow](https://travisdowns.github.io/blog/2019/05/22/sorting.html), and it appears in critical areas (initial candidate sorting and filtering for duplicate removal). Maybe mergesort or hash methods could be faster.
-- The main algorithm used here probably doesn't compete with [hidny's solution](https://github.com/mikepound/opencubes/issues/27).
-- Command argument handling. Ability to select number of threads, use cache files, etc.
+- qsort [can be slow](https://travisdowns.github.io/blog/2019/05/22/sorting.html), and it appears in critical areas (filtering for duplicate removal). Maybe mergesort or other methods could be faster.
 - Graph algorithms could probably improve the performance of the full connection check.
+- Using an actual compression algorithm on top of the cache file format could yield much smaller file sizes (~30% of original size in some cases).
+- Cross-platform compatibility (maybe use CMake).
+- CLI is rather basic.
 
 ## License
 
