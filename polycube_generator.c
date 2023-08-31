@@ -65,6 +65,11 @@ int main (int argc, char** argv) {
 			if (value == NULL) return 0;
 			
 			input_file = fopen(value, "rb");
+			
+			if (input_file == NULL) {
+				printf("Invalid cache file\n");
+				return 0;
+			}
 		} else if (strcmp(argv[i], "-o") == 0) {
 			char* value = get_value(&i, argc, argv);
 			
@@ -136,9 +141,13 @@ int main (int argc, char** argv) {
 	}
 	
 	if (new_length > SINGLE_THREAD_LENGTH) {
-		ThreadPool* pool = thread_pool_create(n_threads, SINGLE_THREAD_LENGTH, new_length);
+		int use_file = input_file != NULL && input_length >= SINGLE_THREAD_LENGTH;
 		
-		if (input_file != NULL && input_length >= SINGLE_THREAD_LENGTH) {
+		int start_length = use_file ? input_length : SINGLE_THREAD_LENGTH;
+			
+		ThreadPool* pool = thread_pool_create(n_threads, start_length, new_length);
+		
+		if (use_file) {
 			thread_pool_set_input_file(pool, input_file);
 		} else {
 			thread_pool_set_input_keys(pool, output_keys, n_generated);

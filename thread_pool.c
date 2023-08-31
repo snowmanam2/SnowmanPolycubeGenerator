@@ -6,8 +6,6 @@
 #include "worker.h"
 #include "compression.h"
 
-
-#define FETCH_COUNT 5
 #define OUTPUT_CACHE 10000
 #define READ_COUNT 10000
 
@@ -26,6 +24,9 @@ ThreadPool* thread_pool_create(int n_threads, int input_length, int output_lengt
 	pthread_mutex_init(&retval->input_lock, NULL);
 	pthread_mutex_init(&retval->output_lock, NULL);
 	pthread_mutex_init(&retval->write_lock, NULL);
+	
+	printf("Using thread pool with %d threads to generate n=%d from n=%d\n", 
+		n_threads, output_length, input_length);
 	
 	return retval;
 }
@@ -51,7 +52,7 @@ void thread_pool_set_input_keys(ThreadPool* pool, Key* input_keys, uint64_t inpu
 
 void thread_pool_set_input_file(ThreadPool* pool, FILE* file) {
 	pool->input_file = file;
-	
+	pool->input_count = 0;
 	pool->input_keys = calloc(READ_COUNT, sizeof(Key));
 }
 
@@ -91,7 +92,7 @@ void thread_pool_update_progress(ThreadPool* pool) {
 }
 
 int thread_pool_get_fetch_count(ThreadPool* pool) {
-	uint64_t new_index = pool->input_index + FETCH_COUNT;
+	uint64_t new_index = pool->input_index + WORKER_FETCH_COUNT;
 	new_index = new_index >= pool->input_count ? pool->input_count : new_index;
 	int count = new_index - pool->input_index;
 	

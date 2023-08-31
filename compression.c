@@ -1,6 +1,7 @@
 #include "compression.h"
 #include "network_sort.h"
 #include <string.h>
+#include <stdio.h>
 
 
 typedef struct {
@@ -28,7 +29,7 @@ int read_bit(char* buffer, int bit) {
 	return buffer[byte] & (1 << (bit - (byte << 3)));
 }
 
-void normalize(RawPoint* points, size_t length) {
+void normalize(RawPoint* points, uint8_t length) {
 	RawPoint min;
 	min.data[0] = 100;
 	min.data[1] = 100;
@@ -138,11 +139,10 @@ size_t compression_compress(Key key, uint8_t length, char* buffer, uint8_t* comp
 // all the faces as in the compression method.
 // After we have these points, we normalize and sort them
 // to conform to the "key" layout used in generation
-Key compression_decompress(char* buffer, size_t length) {
+Key compression_decompress(char* buffer, uint8_t length) {
 	Key retval;
 	retval.length = length;
-	retval.data[0] = point_from_coords(1, 1, 1);
-		
+	
 	RawPoint points[length];
 	points[0].data[0] = 1;
 	points[0].data[1] = 1;
@@ -154,7 +154,7 @@ Key compression_decompress(char* buffer, size_t length) {
 	
 	if (length == 1) return retval; 
 	
-	for (int i = 0; i < length; i++) {
+	for (int i = 0; i < length - 1; i++) {
 		int o = get_opposite_face(faces[i]);
 		for (int f = 0; f < 6; f++) {
 			if (f == o) continue;
@@ -166,9 +166,12 @@ Key compression_decompress(char* buffer, size_t length) {
 			
 			points[points_index] = raw_point_get_offset(points[i], f);
 			faces[points_index] = f;
+			
 			points_index++;
 		}
 	}
+	
+	if (points_index != length) printf("Warning: found malformed polycube\n");
 	
 	normalize(points, length);
 	
@@ -176,8 +179,6 @@ Key compression_decompress(char* buffer, size_t length) {
 		RawPoint p = points[i];
 		retval.data[i] = point_from_coords(p.data[0], p.data[1], p.data[2]);
 	}
-	
-	retval.length = length;
 	
 	network_sort(retval.data, length, point_compare);
 	
