@@ -4,10 +4,8 @@
 
 #include "thread_pool.h"
 #include "worker.h"
-#include "compression.h"
 
-#define OUTPUT_CACHE 10000
-#define READ_COUNT 10000
+#define OUTPUT_CACHE 100000
 
 ThreadPool* thread_pool_create(int n_threads, int input_length, int output_length) {
 	ThreadPool* retval = calloc(1, sizeof(ThreadPool));
@@ -17,7 +15,7 @@ ThreadPool* thread_pool_create(int n_threads, int input_length, int output_lengt
 	retval->input_index = 0;
 	retval->output_length = output_length;
 	retval->mode = OutputCount;
-	retval->input_file = NULL;
+	retval->reader = NULL;
 	
 	retval->next_update_index = -1;
 	
@@ -32,13 +30,13 @@ ThreadPool* thread_pool_create(int n_threads, int input_length, int output_lengt
 }
 
 void thread_pool_destroy(ThreadPool* pool) {
-	if (pool->mode == OutputFile) {
+	if (pool->mode == OutputWriter) {
 		free(pool->output_keys);
 		free(pool->write_keys);
 		free(pool->spacemap);
 	}
 	
-	if (pool->input_file != NULL) {
+	if (pool->reader != NULL) {
 		free(pool->input_keys);
 	}
 
@@ -50,10 +48,10 @@ void thread_pool_set_input_keys(ThreadPool* pool, Key* input_keys, uint64_t inpu
 	pool->input_count = input_count;
 }
 
-void thread_pool_set_input_file(ThreadPool* pool, FILE* file) {
-	pool->input_file = file;
+void thread_pool_set_input_reader(ThreadPool* pool, Reader* reader) {
+	pool->reader = reader;
 	pool->input_count = 0;
-	pool->input_keys = calloc(READ_COUNT, sizeof(Key));
+	pool->input_keys = calloc(READER_MAX_COUNT, sizeof(Key));
 }
 
 void thread_pool_set_output_keys(ThreadPool* pool, Key* output_keys) {
@@ -61,9 +59,9 @@ void thread_pool_set_output_keys(ThreadPool* pool, Key* output_keys) {
 	pool->output_keys = output_keys;
 }
 
-void thread_pool_set_output_file(ThreadPool* pool, FILE* file) {
-	pool->mode = OutputFile;
-	pool->output_file = file;
+void thread_pool_set_output_writer(ThreadPool* pool, Writer* writer) {
+	pool->mode = OutputWriter;
+	pool->writer = writer;
 	
 	pool->output_keys = calloc(OUTPUT_CACHE + 1000, sizeof(Key));
 	pool->write_keys = calloc(OUTPUT_CACHE + 1000, sizeof(Key));
@@ -71,10 +69,6 @@ void thread_pool_set_output_file(ThreadPool* pool, FILE* file) {
 	pool->spacemap = calloc(POINT_SPACEMAP_SIZE, sizeof(uint8_t));
 	
 	pool->output_index = 0;
-	
-	char len = pool->output_length;
-	
-	fwrite(&len, sizeof(char), 1, file);
 }
 
 void thread_pool_update_progress(ThreadPool* pool) {
@@ -104,8 +98,8 @@ int thread_pool_fetch_seeds(ThreadPool* pool, Key* fetched_keys) {
 		
 	int count = thread_pool_get_fetch_count(pool);
 	
-	if (count == 0 && pool->input_file != NULL) {
-		thread_pool_read_file(pool);
+	if (count == 0 && pool->reader != NULL) {
+		thread_pool_read(pool);
 		count = thread_pool_get_fetch_count(pool);
 	}
 	
@@ -122,22 +116,8 @@ int thread_pool_fetch_seeds(ThreadPool* pool, Key* fetched_keys) {
 	return count;
 }
 
-uint64_t thread_pool_read_file(ThreadPool* pool) {
-	size_t raw_size = compression_key_size(pool->input_length);
-	size_t in_buf_size = READ_COUNT * raw_size;
-	char buffer[in_buf_size];
-	
-	size_t read_count = 0;
-	
-	read_count = fread(buffer, sizeof(char), in_buf_size, pool->input_file);
-	
-	if (read_count == 0) return 0;
-	
-	size_t n_read = read_count / raw_size;
-	
-	for (uint64_t i = 0; i < n_read; i++) {	
-		pool->input_keys[i] = compression_decompress(&buffer[i * raw_size], pool->input_length);
-	}
+uint64_t thread_pool_read(ThreadPool* pool) {
+	uint64_t n_read = reader_read_keys(pool->reader, pool->input_keys);
 	
 	pool->input_count = n_read;
 	pool->input_index = 0;
@@ -145,20 +125,8 @@ uint64_t thread_pool_read_file(ThreadPool* pool) {
 	return n_read;
 }
 
-void thread_pool_write_file(ThreadPool* pool, uint64_t write_count) {
-	
-	int len = compression_key_size(pool->output_length);
-	
-	char buffer[len];
-	
-	for (uint64_t i = 0; i < write_count; i++) {
-		memset(buffer, 0, len);
-		
-		compression_compress(pool->write_keys[i], pool->output_length, buffer, pool->spacemap);
-		
-		fwrite(buffer, sizeof(char), len, pool->output_file);
-	}
-	
+void thread_pool_write(ThreadPool* pool, uint64_t write_count) {
+	writer_write_keys(pool->writer, pool->write_keys, write_count);
 }
 
 void thread_pool_swap_write_keys(ThreadPool* pool) {
@@ -188,7 +156,7 @@ void thread_pool_push_output(ThreadPool* pool, Key* output_keys, int output_coun
 			memcpy(&pool->output_keys[pool->output_count], output_keys, output_count * sizeof(Key));
 			pool->output_count += output_count;
 			break;
-		case OutputFile:
+		case OutputWriter:
 			memcpy(&pool->output_keys[pool->output_index], output_keys, output_count * sizeof(Key));
 			pool->output_count += output_count;
 			pool->output_index += output_count;
@@ -212,7 +180,7 @@ void thread_pool_push_output(ThreadPool* pool, Key* output_keys, int output_coun
 	pthread_mutex_unlock(&pool->output_lock);
 	
 	if (do_write) {
-		thread_pool_write_file(pool, write_count);
+		thread_pool_write(pool, write_count);
 		
 		pthread_mutex_unlock(&pool->write_lock);
 	}
@@ -234,9 +202,9 @@ uint64_t thread_pool_run(ThreadPool* pool) {
 		worker_destroy(&worker_data[i]);
 	}
 	
-	if (pool->mode == OutputFile) {
+	if (pool->mode == OutputWriter) {
 		thread_pool_swap_write_keys(pool);
-		thread_pool_write_file(pool, pool->output_index);
+		thread_pool_write(pool, pool->output_index);
 	}
 	
 	return pool->output_count

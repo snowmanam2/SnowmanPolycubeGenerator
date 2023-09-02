@@ -5,6 +5,8 @@
 #include "generator.h"
 #include "thread_pool.h"
 #include "point.h"
+#include "reader.h"
+#include "writer.h"
 
 #define SINGLE_THREAD_LENGTH 9
 #define N_THREADS 16
@@ -22,6 +24,53 @@ char* get_value(int* index, int argc, char** argv) {
 	*index += 1;
 	
 	return argv[*index];
+}
+
+Reader* build_reader(char* arg, char* filename) {
+	int len = strlen(filename);
+	
+	ReaderMode mode = ReadBitFace;
+	
+	if (len > 6) {
+		if(strcmp(&filename[len-6], ".pcube") == 0) {
+			mode = ReadPCube;
+		}
+	}
+	
+	return reader_create(filename, mode);
+	
+}
+
+Writer* build_writer(char* arg, char* filename, uint8_t new_length) {
+	int len = strlen(filename);
+	
+	WriterMode mode = WriteBitFace;
+	
+	if (len > 6) {
+		if(strcmp(&filename[len-6], ".pcube") == 0) {
+			mode = WritePCube;
+		}
+	}
+	
+	return writer_create(filename, mode, new_length);
+}
+
+void convert_files(Reader* reader, Writer* writer) {
+	printf("Converting data of equal length between formats...\n");
+	
+	Key* keys = calloc(READER_MAX_COUNT, sizeof(Key));
+	
+	uint64_t total = 0;
+	
+	uint64_t count = 0;
+	do {
+		count = reader_read_keys(reader, keys);
+		writer_write_keys(writer, keys, count);
+		
+		total += count;
+	} while (count > 0);
+	
+	printf("Processed %lld polycubes.\n", (long long int) total);
 }
 
 int main (int argc, char** argv) {
@@ -43,8 +92,8 @@ int main (int argc, char** argv) {
 		return 0;
 	}
 	
-	FILE* output_file = NULL;
-	FILE* input_file = NULL;
+	Writer* writer = NULL;
+	Reader* reader = NULL;
 		
 	int n_threads = N_THREADS;
 	
@@ -59,23 +108,22 @@ int main (int argc, char** argv) {
 				printf("Invalid number of threads\n");
 				return 0;
 			}
-		} else if (strcmp(argv[i], "-i") == 0) {
+		} else if (strncmp(argv[i], "-i", 2) == 0) {
 			char* value = get_value(&i, argc, argv);
 			
 			if (value == NULL) return 0;
 			
-			input_file = fopen(value, "rb");
+			reader = build_reader(argv[i], value);
 			
-			if (input_file == NULL) {
-				printf("Invalid cache file\n");
-				return 0;
-			}
-		} else if (strcmp(argv[i], "-o") == 0) {
+			if (reader == NULL) return 0;
+		} else if (strncmp(argv[i], "-o", 2) == 0) {
 			char* value = get_value(&i, argc, argv);
 			
 			if (value == NULL) return 0;
 			
-			output_file = fopen(value, "wb");
+			writer = build_writer(argv[i], value, new_length);
+			
+			if (writer == NULL) return 0;
 		} else {
 			printf("Unrecognized argument \"%s\"\n", argv[i]);
 			print_usage();
@@ -84,22 +132,27 @@ int main (int argc, char** argv) {
 	}
 	
 	char input_length = 0;
-	if (input_file != NULL) {
-		int result = fread(&input_length, 1, 1, input_file);
+	if (reader != NULL) {
+		input_length = reader_get_n(reader);
 		
-		if (result == 0) {
-			fclose(input_file);
-			printf("Unable to read cache file\n");
-		} else if (input_length < 3) {
-			fclose(input_file);
+		if (input_length < 3) {
+			reader_destroy(reader);
+			reader = NULL;
 			printf("Note: Ignoring cache file with unsupported length %d (greater than target %d)\n", input_length, new_length);
 		} else if (input_length > new_length) {
-			fclose(input_file);
+			reader_destroy(reader);
+			reader = NULL;
 			printf("Note: Ignoring cache file with length %d (greater than target %d)\n", input_length, new_length);
 		}
 		else if (input_length == new_length) {
-			fclose(input_file);
-			printf("Note: Ignoring cache file with length %d (equal to target %d)\n", input_length, new_length);
+			if (writer == NULL) {
+				reader_destroy(reader);
+				reader = NULL;
+				printf("Note: Ignoring cache file with length %d (equal to target %d)\n", input_length, new_length);
+			} else {
+				convert_files(reader, writer);
+				return 0;
+			}
 		}
 	}
 	
@@ -109,11 +162,11 @@ int main (int argc, char** argv) {
 	if (input_length < SINGLE_THREAD_LENGTH) {
 		int target_length = new_length < SINGLE_THREAD_LENGTH ? new_length : SINGLE_THREAD_LENGTH;
 		
-		int start_length = input_file != NULL ? input_length : 2;
+		int start_length = reader != NULL ? input_length : 2;
 		
 		ThreadPool* pool = thread_pool_create(1, start_length, target_length);
 		
-		if (input_file == NULL) {
+		if (reader == NULL) {
 			Key start;
 			Point p = point_from_coords(1,1,1);
 			
@@ -126,13 +179,13 @@ int main (int argc, char** argv) {
 			
 			thread_pool_set_input_keys(pool, &start, 1);
 		} else {
-			thread_pool_set_input_file(pool, input_file);
+			thread_pool_set_input_reader(pool, reader);
 		}
 		
 		thread_pool_set_output_keys(pool, output_keys);
 		
-		if (new_length <= SINGLE_THREAD_LENGTH && output_file != NULL) {
-			thread_pool_set_output_file(pool, output_file);
+		if (new_length <= SINGLE_THREAD_LENGTH && writer != NULL) {
+			thread_pool_set_output_writer(pool, writer);
 		}
 		
 		n_generated = thread_pool_run(pool);
@@ -141,21 +194,21 @@ int main (int argc, char** argv) {
 	}
 	
 	if (new_length > SINGLE_THREAD_LENGTH) {
-		int use_file = input_file != NULL && input_length >= SINGLE_THREAD_LENGTH;
+		int use_file = reader != NULL && input_length >= SINGLE_THREAD_LENGTH;
 		
 		int start_length = use_file ? input_length : SINGLE_THREAD_LENGTH;
 			
 		ThreadPool* pool = thread_pool_create(n_threads, start_length, new_length);
 		
 		if (use_file) {
-			thread_pool_set_input_file(pool, input_file);
+			thread_pool_set_input_reader(pool, reader);
 		} else {
 			thread_pool_set_input_keys(pool, output_keys, n_generated);
 			thread_pool_enable_updates(pool);
 		}
 		
-		if (output_file != NULL) {
-			thread_pool_set_output_file(pool, output_file);
+		if (writer != NULL) {
+			thread_pool_set_output_writer(pool, writer);
 		}
 		
 		n_generated = thread_pool_run(pool);
@@ -170,8 +223,8 @@ int main (int argc, char** argv) {
 	
 	free(output_keys);
 	
-	if (output_file != NULL) fclose(output_file);
-	if (input_file != NULL) fclose(input_file);
+	if (writer != NULL) writer_destroy(writer);
+	if (reader != NULL) reader_destroy(reader);
 	
 	return 0;
 }

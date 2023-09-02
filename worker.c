@@ -1,7 +1,6 @@
 #include <stdio.h>
 
 #include "worker.h"
-#include "compression.h"
 #include "thread_pool.h"
 #include "generator.h"
 #include "point.h"

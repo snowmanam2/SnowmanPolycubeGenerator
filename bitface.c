@@ -1,7 +1,9 @@
-#include "compression.h"
-#include "network_sort.h"
 #include <string.h>
 #include <stdio.h>
+#include <stdint.h>
+
+#include "bitface.h"
+#include "network_sort.h"
 
 
 typedef struct {
@@ -54,7 +56,7 @@ void normalize(RawPoint* points, uint8_t length) {
 // 6 bits for first point faces
 // 5 bits for face bits of each remaining point
 // omit last point
-size_t compression_key_size(size_t number) {
+size_t bitface_key_size(size_t number) {
 
 	if (number < 2) return 1;
 	
@@ -71,7 +73,7 @@ int get_opposite_face(int face) {
 	return opposite_lut[face];
 }
 
-// This compression algorithm uses a bit scheme to convert points
+// This bitface algorithm uses a bit scheme to convert points
 // into face connections represented as individual bits.
 //
 // Each bit represents the face offset to get the next point in the list.
@@ -81,7 +83,7 @@ int get_opposite_face(int face) {
 // 
 // Currently this reduces space consumption to 8 bytes or less for n=13
 // (Note the output contains exactly n-1 set bits with the rest left zero)
-size_t compression_compress(Key key, uint8_t length, char* buffer, uint8_t* compression_places) {
+size_t bitface_pack(Key key, uint8_t length, char* buffer, uint8_t* bitface_places) {
 	
 	uint8_t point_index = 1;
 	int point_keys[length]; // place map keys based on order of point discovery
@@ -94,7 +96,7 @@ size_t compression_compress(Key key, uint8_t length, char* buffer, uint8_t* comp
 	const int* offsets_lut = point_get_offsets_lut();
 		
 	for (uint8_t i = 1; i < length; i++) {;
-		compression_places[key.data[i]] = 1;
+		bitface_places[key.data[i]] = 1;
 	}
 	
 
@@ -108,12 +110,12 @@ size_t compression_compress(Key key, uint8_t length, char* buffer, uint8_t* comp
 			
 			ptkey = ptbasekey + offsets_lut[f];
 			
-			if (!compression_places[ptkey]) {
+			if (!bitface_places[ptkey]) {
 				bit++;
 				continue;
 			}
 			
-			compression_places[ptkey] = 0;
+			bitface_places[ptkey] = 0;
 			
 			write_bit(buffer, bit);
 			bit++;
@@ -128,18 +130,18 @@ size_t compression_compress(Key key, uint8_t length, char* buffer, uint8_t* comp
 	// With this last set, we have cleared the conversion_places map fully
 	// meaning we don't need to set memory
 	ptkey = point_keys[point_index-1];
-	compression_places[ptkey] = 0;
+	bitface_places[ptkey] = 0;
 	
 	return bit;
 }
 
 
-// This decompression method assumes the first point is (1,1,1)
+// This debitface method assumes the first point is (1,1,1)
 // From there we rebuild the point list by iterating through
-// all the faces as in the compression method.
+// all the faces as in the bitface method.
 // After we have these points, we normalize and sort them
 // to conform to the "key" layout used in generation
-Key compression_decompress(char* buffer, uint8_t length) {
+Key bitface_unpack(char* buffer, uint8_t length) {
 	Key retval;
 	retval.length = length;
 	
@@ -185,3 +187,43 @@ Key compression_decompress(char* buffer, uint8_t length) {
 	return retval;
 }
 
+uint64_t bitface_read_keys(FILE* file, Key* keys, uint8_t length, uint64_t count) {
+	size_t raw_size = bitface_key_size(length);
+	size_t in_buf_size = count * raw_size;
+	char buffer[in_buf_size];
+	
+	size_t read_count = 0;
+	
+	read_count = fread(buffer, sizeof(char), in_buf_size, file);
+	
+	if (read_count == 0) return 0;
+	
+	size_t n_read = read_count / raw_size;
+	
+	for (uint64_t i = 0; i < n_read; i++) {	
+		keys[i] = bitface_unpack(&buffer[i * raw_size], length);
+	}
+	
+	return n_read;
+}
+
+void bitface_write_keys(FILE* file, Key* keys, uint64_t count, uint8_t* places) {
+	if (count < 1) return;
+	
+	uint8_t length = keys[0].length;
+	size_t raw_size = bitface_key_size(length);
+	
+	char buffer[raw_size];
+	
+	for (uint64_t i = 0; i < count; i++) {
+		memset(buffer, 0, raw_size);
+		
+		bitface_pack(keys[i], length, buffer, places);
+		
+		fwrite(buffer, sizeof(char), raw_size, file);
+	}
+}
+
+void bitface_write_n(FILE* file, uint8_t n) {
+	fwrite(&n, sizeof(uint8_t), 1, file);
+}
