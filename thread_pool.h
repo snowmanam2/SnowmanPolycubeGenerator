@@ -14,8 +14,8 @@ typedef enum {OutputWriter, OutputKeys, OutputCount} OutputMode;
 typedef struct {
 	int n_threads;
 	Key* input_keys;
-	uint64_t input_count;
-	uint64_t input_index;
+	uint64_t input_count; // Count of keys in the input buffer
+	uint64_t input_index; // Index of keys in the input buffer
 	int input_length;
 	Reader* reader;
 	Key* output_keys;
@@ -27,6 +27,8 @@ typedef struct {
 	uint8_t* spacemap;
 	OutputMode mode;
 	int64_t next_update_index;
+	uint64_t total_input_index; // Total input index for progress updates
+	uint64_t total_input_count; // Total input count for progress updates
 	time_t start_time;
 	pthread_mutex_t input_lock;
 	pthread_mutex_t output_lock;

@@ -6,6 +6,7 @@
 #define PCUBE_H
 
 void pcube_write_header(FILE* file);
+void pcube_write_count(FILE* file, uint64_t count);
 void pcube_write_key(FILE* file, Key key);
 void pcube_write_keys(FILE* file, Key* keys, uint64_t count);
 

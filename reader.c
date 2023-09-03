@@ -12,6 +12,7 @@ Reader* reader_create(char* filename, ReaderMode mode) {
 	Reader* retval = calloc(1, sizeof(Reader));
 	retval->file = file;
 	retval->mode = mode;
+	retval->count = 0;
 	
 	switch (mode) {
 		case ReadBitFace:
@@ -21,11 +22,12 @@ Reader* reader_create(char* filename, ReaderMode mode) {
 				free(retval);
 				return NULL;
 			}
+			retval->count = bitface_read_count(file, retval->length);
 			break;
 		case ReadPCube:
 			printf("Starting file reader in PCube mode.\n");
 			pcube_read_header(file);
-			pcube_read_count(file); // ignored for now
+			retval->count = pcube_read_count(file);
 			retval->length = pcube_read_n(file);
 			break;
 	}
@@ -40,6 +42,10 @@ void reader_destroy(Reader* reader) {
 
 uint8_t reader_get_n(Reader* reader) {
 	return reader->length;
+}
+
+uint64_t reader_get_count(Reader* reader) {
+	return reader->count;
 }
 
 uint64_t reader_read_keys(Reader* reader, Key* output_keys) {

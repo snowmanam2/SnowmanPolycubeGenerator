@@ -13,6 +13,7 @@ ThreadPool* thread_pool_create(int n_threads, int input_length, int output_lengt
 	retval->n_threads = n_threads;
 	retval->input_length = input_length;
 	retval->input_index = 0;
+	retval->total_input_index = 0;
 	retval->output_length = output_length;
 	retval->mode = OutputCount;
 	retval->reader = NULL;
@@ -46,12 +47,23 @@ void thread_pool_destroy(ThreadPool* pool) {
 void thread_pool_set_input_keys(ThreadPool* pool, Key* input_keys, uint64_t input_count) {
 	pool->input_keys = input_keys;
 	pool->input_count = input_count;
+	pool->total_input_count = input_count;
 }
 
 void thread_pool_set_input_reader(ThreadPool* pool, Reader* reader) {
 	pool->reader = reader;
 	pool->input_count = 0;
 	pool->input_keys = calloc(READER_MAX_COUNT, sizeof(Key));
+	
+	uint64_t count = reader_get_count(reader);
+	if (count > 0) {
+		printf("Found %lld polycubes in input file\n", (long long int) count);
+		
+		pool->total_input_count = count;
+		thread_pool_enable_updates(pool);
+	} else {
+		printf("Could not get count of polycubes in input file. Progress updates disabled.\n");
+	}
 }
 
 void thread_pool_set_output_keys(ThreadPool* pool, Key* output_keys) {
@@ -72,16 +84,16 @@ void thread_pool_set_output_writer(ThreadPool* pool, Writer* writer) {
 }
 
 void thread_pool_update_progress(ThreadPool* pool) {
-	if (pool->input_index >= pool->next_update_index) {
+	if (pool->total_input_index >= pool->next_update_index) {
 		
 		double diff = difftime(time(NULL), pool->start_time);
-		double est_total = diff * pool->input_count / pool->input_index;
+		double est_total = diff * pool->total_input_count / pool->total_input_index;
 		
 		printf("%d%% ... (est. %.f seconds remaining)\n", 
-			(int)(100 * pool->input_index / pool->input_count),
+			(int)(100 * pool->total_input_index / pool->total_input_count),
 			est_total - diff);
-		
-		pool->next_update_index += pool->input_count / 20;
+		fflush(stdout);
+		pool->next_update_index += pool->total_input_count / 20;
 	}
 }
 
@@ -106,6 +118,7 @@ int thread_pool_fetch_seeds(ThreadPool* pool, Key* fetched_keys) {
 	memcpy(fetched_keys, &pool->input_keys[pool->input_index], count * sizeof(Key));
 	
 	pool->input_index += count;
+	pool->total_input_index += count;
 	
 	if (pool->next_update_index >= 0) {
 		thread_pool_update_progress(pool);

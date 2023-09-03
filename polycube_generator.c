@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <time.h>
 #include <string.h>
+#include <sys/stat.h>
 
 #include "generator.h"
 #include "thread_pool.h"
@@ -69,6 +70,9 @@ void convert_files(Reader* reader, Writer* writer) {
 		
 		total += count;
 	} while (count > 0);
+	
+	writer_write_count(writer, total);
+	writer_destroy(writer);
 	
 	printf("Processed %lld polycubes.\n", (long long int) total);
 }
@@ -223,7 +227,10 @@ int main (int argc, char** argv) {
 	
 	free(output_keys);
 	
-	if (writer != NULL) writer_destroy(writer);
+	if (writer != NULL) {
+		writer_write_count(writer, n_generated);
+		writer_destroy(writer);
+	}
 	if (reader != NULL) reader_destroy(reader);
 	
 	return 0;

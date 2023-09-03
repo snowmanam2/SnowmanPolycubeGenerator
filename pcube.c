@@ -3,6 +3,9 @@
 #include "pcube.h"
 #include "network_sort.h"
 
+#define HEADER_WIDTH 6
+#define COUNT_WIDTH 10
+
 // Notes:
 // This implementation currently doesn't support writing:
 // - Specific orientations
@@ -24,8 +27,31 @@ void pcube_write_header(FILE* file) {
 	uint8_t compression = 0;
 	fwrite(&compression, sizeof(uint8_t), 1, file);
 	
-	uint8_t count = 0;
-	fwrite(&count, sizeof(uint8_t), 1, file);
+	// Write 0 count as a placeholder
+	pcube_write_count(file, 0);
+}
+
+// Writes the LEB128 encoded count
+// https://en.wikipedia.org/wiki/LEB128
+// This version actually writes a 64 bit fixed width.
+// Most decoding algorithms seem to be able to read it, though it
+// isn't exactly formatted the way the standard is written.
+// The reason is to allocate the space at the front of the file
+// to save until the actual count is known.
+void pcube_write_count(FILE* file, uint64_t count) {
+	uint8_t top = 0x80; // Top bit to check if reached end
+	uint8_t mask = 0x7F; // Bottom 7 bits
+	
+	uint8_t bytes[COUNT_WIDTH];
+	for (uint8_t i = 0; i < COUNT_WIDTH; i++) {
+		bytes[i] = (count & mask) | top;
+		count = count >> 7;
+	}
+	
+	bytes[COUNT_WIDTH - 1] &= ~top; // Last byte must have top bit set to zero
+	
+	fseek(file, HEADER_WIDTH, SEEK_SET);
+	fwrite(bytes, sizeof(uint8_t), COUNT_WIDTH, file);
 }
 
 void pcube_write_key(FILE* file, Key key) {

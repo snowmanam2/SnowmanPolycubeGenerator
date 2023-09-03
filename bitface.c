@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdint.h>
+#include <sys/stat.h>
 
 #include "bitface.h"
 #include "network_sort.h"
@@ -73,7 +74,7 @@ int get_opposite_face(int face) {
 	return opposite_lut[face];
 }
 
-// This bitface algorithm uses a bit scheme to convert points
+// This bitface pack algorithm uses a bit scheme to convert points
 // into face connections represented as individual bits.
 //
 // Each bit represents the face offset to get the next point in the list.
@@ -136,7 +137,7 @@ size_t bitface_pack(Key key, uint8_t length, char* buffer, uint8_t* bitface_plac
 }
 
 
-// This debitface method assumes the first point is (1,1,1)
+// This bitface unpack method assumes the first point is (1,1,1)
 // From there we rebuild the point list by iterating through
 // all the faces as in the bitface method.
 // After we have these points, we normalize and sort them
@@ -205,6 +206,21 @@ uint64_t bitface_read_keys(FILE* file, Key* keys, uint8_t length, uint64_t count
 	}
 	
 	return n_read;
+}
+
+uint64_t bitface_read_count(FILE* file, uint8_t length) {
+	uint64_t count = 0;
+	struct stat buf;
+	int fd = fileno(file);
+	fstat(fd, &buf);
+	off_t size = buf.st_size;
+	
+	count = size;
+	
+	uint8_t keysize = bitface_key_size(length);
+	count /= keysize;
+	
+	return count;
 }
 
 void bitface_write_keys(FILE* file, Key* keys, uint64_t count, uint8_t* places) {

@@ -14,13 +14,14 @@ typedef struct {
 	FILE* file;
 	ReaderMode mode;
 	uint8_t length;
+	uint64_t count;
 } Reader;
 
 Reader* reader_create(char* filename, ReaderMode mode);
 void reader_destroy(Reader* reader);
 
 uint8_t reader_get_n(Reader* reader);
-
+uint64_t reader_get_count(Reader* reader);
 uint64_t reader_read_keys(Reader* reader, Key* output_keys);
 
 #endif

@@ -47,3 +47,13 @@ void writer_write_keys(Writer* writer, Key* keys, uint64_t count) {
 			break;
 	}
 }
+
+void writer_write_count(Writer* writer, uint64_t count) {
+	switch (writer->mode) {
+		case WriteBitFace:
+			break;
+		case WritePCube:
+			pcube_write_count(writer->file, count);
+			break;
+	}
+}
