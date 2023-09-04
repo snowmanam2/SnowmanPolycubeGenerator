@@ -1,7 +1,6 @@
 #include <string.h>
 #include <stdio.h>
 #include <stdint.h>
-#include <sys/stat.h>
 
 #include "bitface.h"
 #include "network_sort.h"
@@ -188,14 +187,14 @@ Key bitface_unpack(char* buffer, uint8_t length) {
 	return retval;
 }
 
-uint64_t bitface_read_keys(FILE* file, Key* keys, uint8_t length, uint64_t count) {
+uint64_t bitface_read_keys(InputStream* stream, Key* keys, uint8_t length, uint64_t count) {
 	size_t raw_size = bitface_key_size(length);
 	size_t in_buf_size = count * raw_size;
 	char buffer[in_buf_size];
 	
 	size_t read_count = 0;
 	
-	read_count = fread(buffer, sizeof(char), in_buf_size, file);
+	read_count = input_stream_read(stream, buffer, in_buf_size);
 	
 	if (read_count == 0) return 0;
 	
@@ -208,14 +207,8 @@ uint64_t bitface_read_keys(FILE* file, Key* keys, uint8_t length, uint64_t count
 	return n_read;
 }
 
-uint64_t bitface_read_count(FILE* file, uint8_t length) {
-	uint64_t count = 0;
-	struct stat buf;
-	int fd = fileno(file);
-	fstat(fd, &buf);
-	off_t size = buf.st_size;
-	
-	count = size;
+uint64_t bitface_read_count(InputStream* stream, uint8_t length) {
+	uint64_t count = input_stream_get_size(stream);
 	
 	uint8_t keysize = bitface_key_size(length);
 	count /= keysize;
@@ -223,7 +216,7 @@ uint64_t bitface_read_count(FILE* file, uint8_t length) {
 	return count;
 }
 
-void bitface_write_keys(FILE* file, Key* keys, uint64_t count, uint8_t* places) {
+void bitface_write_keys(OutputStream* stream, Key* keys, uint64_t count, uint8_t* places) {
 	if (count < 1) return;
 	
 	uint8_t length = keys[0].length;
@@ -236,10 +229,10 @@ void bitface_write_keys(FILE* file, Key* keys, uint64_t count, uint8_t* places) 
 		
 		bitface_pack(keys[i], length, buffer, places);
 		
-		fwrite(buffer, sizeof(char), raw_size, file);
+		output_stream_write(stream, buffer, raw_size);
 	}
 }
 
-void bitface_write_n(FILE* file, uint8_t n) {
-	fwrite(&n, sizeof(uint8_t), 1, file);
+void bitface_write_n(OutputStream* stream, uint8_t n) {
+	output_stream_write_raw(stream, &n, 1);
 }

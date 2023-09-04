@@ -1,5 +1,5 @@
 TARGET = polycube_generator
-LIBS = -lm -pthread
+LIBS = -lm -pthread -lz
 CC = gcc
 CFLAGS = -g -Wall -O2
 

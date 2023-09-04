@@ -2,6 +2,7 @@
 #include <stdint.h>
 
 #include "key.h"
+#include "input_stream.h"
 
 #ifndef READER_H
 #define READER_H
@@ -11,7 +12,7 @@
 typedef enum {ReadBitFace, ReadPCube} ReaderMode;
 
 typedef struct {
-	FILE* file;
+	InputStream* stream;
 	ReaderMode mode;
 	uint8_t length;
 	uint64_t count;

@@ -13,22 +13,21 @@
 // - Count writing (LEB128 makes this harder than it needs to be...)
 // As such, this header is the same for all pcube files
 // TODO: Add read / write compressed data
-void pcube_write_header(FILE* file) {
+void pcube_write_header(OutputStream* stream, uint8_t compressed) {
 	uint8_t magic[4];
 	magic[0] = 0xCB;
 	magic[1] = 0xEC;
 	magic[2] = 0xCB;
 	magic[3] = 0xEC;
-	fwrite(magic, sizeof(uint8_t), 4, file);
+	output_stream_write_raw(stream, magic, 4);
 	
 	uint8_t orientation = 0;
-	fwrite(&orientation, sizeof(uint8_t), 1, file);
+	output_stream_write_raw(stream, &orientation, 1);
 	
-	uint8_t compression = 0;
-	fwrite(&compression, sizeof(uint8_t), 1, file);
+	output_stream_write_raw(stream, &compressed, 1);
 	
 	// Write 0 count as a placeholder
-	pcube_write_count(file, 0);
+	pcube_write_count(stream, 0);
 }
 
 // Writes the LEB128 encoded count
@@ -38,7 +37,7 @@ void pcube_write_header(FILE* file) {
 // isn't exactly formatted the way the standard is written.
 // The reason is to allocate the space at the front of the file
 // to save until the actual count is known.
-void pcube_write_count(FILE* file, uint64_t count) {
+void pcube_write_count(OutputStream* stream, uint64_t count) {
 	uint8_t top = 0x80; // Top bit to check if reached end
 	uint8_t mask = 0x7F; // Bottom 7 bits
 	
@@ -50,11 +49,11 @@ void pcube_write_count(FILE* file, uint64_t count) {
 	
 	bytes[COUNT_WIDTH - 1] &= ~top; // Last byte must have top bit set to zero
 	
-	fseek(file, HEADER_WIDTH, SEEK_SET);
-	fwrite(bytes, sizeof(uint8_t), COUNT_WIDTH, file);
+	output_stream_seek(stream, HEADER_WIDTH);
+	output_stream_write_raw(stream, bytes, COUNT_WIDTH);
 }
 
-void pcube_write_key(FILE* file, Key key) {
+void pcube_write_key(OutputStream* stream, Key key) {
 	Point dim_pt = key_get_dimensions(key);
 	
 	uint8_t dim[3];
@@ -67,7 +66,7 @@ void pcube_write_key(FILE* file, Key key) {
 	offsets[1] = dim[2];
 	offsets[2] = 1;
 	
-	fwrite(dim, sizeof(uint8_t), 3, file);
+	output_stream_write(stream, dim, 3);
 	
 	uint8_t bits = dim[0] * dim[1] * dim[2];
 	uint8_t bytes = bits >> 3;
@@ -87,18 +86,18 @@ void pcube_write_key(FILE* file, Key key) {
 		data[byte] |= 1 << bit;
 	}
 	
-	fwrite(data, sizeof(uint8_t), bytes, file);
+	output_stream_write(stream, data, bytes);
 }
 
-void pcube_write_keys(FILE* file, Key* keys, uint64_t count) {
+void pcube_write_keys(OutputStream* stream, Key* keys, uint64_t count) {
 	for (uint64_t i = 0; i < count; i++) {
-		pcube_write_key(file, keys[i]);
+		pcube_write_key(stream, keys[i]);
 	}
 }
 
-int pcube_read_header(FILE* file) {
+int pcube_read_header(InputStream* stream) {
 	uint8_t magic[4];
-	if(!fread(magic, 1, 4, file)) return 0;
+	if (!input_stream_read_raw(stream, magic, 4)) return 0;
 	
 	if (magic[0] != 0xCB || magic[1] != 0xEC || magic[2] != 0xCB || magic[3] != 0xEC) {
 		printf("pcube input file has incorrect identifier\n");
@@ -107,13 +106,13 @@ int pcube_read_header(FILE* file) {
 	
 	// Ignore orientation for now
 	uint8_t orientation;
-	if(!fread(&orientation, 1, 1, file)) return 0;
+	if(!input_stream_read_raw(stream, &orientation, 1)) return 0;
 	
-	uint8_t compression;
-	if(!fread(&compression, 1, 1, file)) return 0;
-	if (compression) {
-		printf("pcube gzip decompression currently not implemented\n");
-		return 0;
+	uint8_t is_compressed;
+	if(!input_stream_read_raw(stream, &is_compressed, 1)) return 0;
+	
+	if (is_compressed) {
+		input_stream_set_compressed(stream, 1);
 	}
 		
 	return 1;
@@ -123,7 +122,7 @@ int pcube_read_header(FILE* file) {
 // https://en.wikipedia.org/wiki/LEB128
 // TODO: This should be able to handle counts up to 128 bits
 // *though that might be unrealistic for this file format to store*
-uint64_t pcube_read_count(FILE* file) {
+uint64_t pcube_read_count(InputStream* stream) {
 	uint64_t retval = 0;
 	uint8_t shift = 0;
 	uint8_t top = 0x80; // Top bit to check if reached end
@@ -131,7 +130,7 @@ uint64_t pcube_read_count(FILE* file) {
 	uint8_t value = 0;
 	
 	do {
-		if(!fread(&value, 1, 1, file)) return 0;
+		if (!input_stream_read_raw(stream, &value, 1)) return 0;
 		retval |= (value & mask) << shift;
 		shift += 7;
 	} while (top & value);
@@ -141,13 +140,13 @@ uint64_t pcube_read_count(FILE* file) {
 
 // Gets the number of cubes to expect in future shapes
 // Must be called in the shape area of the file
-uint8_t pcube_read_n(FILE* file) {
-	long offset = ftell(file);
+uint8_t pcube_read_n(InputStream* stream) {
+	long offset = input_stream_get_offset(stream);
 	
 	Key test;
-	pcube_read_key(file, &test);
+	pcube_read_key(stream, &test);
 	
-	fseek(file, offset, SEEK_SET);
+	input_stream_rewind(stream, offset);
 	
 	return test.length;
 }
@@ -155,11 +154,11 @@ uint8_t pcube_read_n(FILE* file) {
 // Reads a key into the output pointer
 // Returns 0 if the file ended
 // Otherwise returns 1 on success
-int pcube_read_key(FILE* file, Key* key_output) {
+int pcube_read_key(InputStream* stream, Key* key_output) {
 	Key retval;
 	
 	uint8_t dim[3];
-	if (!fread(dim, sizeof(uint8_t), 3, file)) {
+	if (!input_stream_read(stream, dim, 3)) {
 		return 0;
 	}
 	
@@ -168,7 +167,7 @@ int pcube_read_key(FILE* file, Key* key_output) {
 	bytes += bits > (bytes << 3);
 	
 	uint8_t data[bytes];
-	if (!fread(data, sizeof(uint8_t), bytes, file)) {
+	if (!input_stream_read(stream, data, bytes)) {
 		return 0;
 	}
 	
@@ -199,10 +198,10 @@ int pcube_read_key(FILE* file, Key* key_output) {
 	return 1;
 }
 
-uint64_t pcube_read_keys(FILE* file, Key* output_keys, uint64_t count) {
+uint64_t pcube_read_keys(InputStream* stream, Key* output_keys, uint64_t count) {
 	uint64_t i = 0;
 	for (i = 0; i < count; i++) {
-		int result = pcube_read_key(file, &output_keys[i]);
+		int result = pcube_read_key(stream, &output_keys[i]);
 		
 		if (!result) break;
 	}

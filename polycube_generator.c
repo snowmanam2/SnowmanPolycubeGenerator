@@ -27,7 +27,7 @@ char* get_value(int* index, int argc, char** argv) {
 	return argv[*index];
 }
 
-Reader* build_reader(char* arg, char* filename) {
+Reader* build_reader(char* opt, char* filename) {
 	int len = strlen(filename);
 	
 	ReaderMode mode = ReadBitFace;
@@ -42,10 +42,12 @@ Reader* build_reader(char* arg, char* filename) {
 	
 }
 
-Writer* build_writer(char* arg, char* filename, uint8_t new_length) {
+Writer* build_writer(char* opt, char* filename, uint8_t new_length) {
 	int len = strlen(filename);
 	
 	WriterMode mode = WriteBitFace;
+	
+	int compressed = strcmp(opt, "-oz") == 0;
 	
 	if (len > 6) {
 		if(strcmp(&filename[len-6], ".pcube") == 0) {
@@ -53,7 +55,7 @@ Writer* build_writer(char* arg, char* filename, uint8_t new_length) {
 		}
 	}
 	
-	return writer_create(filename, mode, new_length);
+	return writer_create(filename, mode, new_length, compressed);
 }
 
 void convert_files(Reader* reader, Writer* writer) {
@@ -113,19 +115,21 @@ int main (int argc, char** argv) {
 				return 0;
 			}
 		} else if (strncmp(argv[i], "-i", 2) == 0) {
+			char* opt = argv[i];
 			char* value = get_value(&i, argc, argv);
 			
 			if (value == NULL) return 0;
 			
-			reader = build_reader(argv[i], value);
+			reader = build_reader(opt, value);
 			
 			if (reader == NULL) return 0;
 		} else if (strncmp(argv[i], "-o", 2) == 0) {
+			char* opt = argv[i];
 			char* value = get_value(&i, argc, argv);
 			
 			if (value == NULL) return 0;
 			
-			writer = build_writer(argv[i], value, new_length);
+			writer = build_writer(opt, value, new_length);
 			
 			if (writer == NULL) return 0;
 		} else {
