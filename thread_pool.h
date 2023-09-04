@@ -26,10 +26,11 @@ typedef struct {
 	Writer* writer;
 	uint8_t* spacemap;
 	OutputMode mode;
-	int64_t next_update_index;
+	int do_updates;
 	uint64_t total_input_index; // Total input index for progress updates
 	uint64_t total_input_count; // Total input count for progress updates
 	time_t start_time;
+	time_t last_update_time;
 	pthread_mutex_t input_lock;
 	pthread_mutex_t output_lock;
 	pthread_mutex_t write_lock;

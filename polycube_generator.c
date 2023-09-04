@@ -219,7 +219,7 @@ int main (int argc, char** argv) {
 		thread_pool_destroy(pool);
 	}
 	
-	printf("%lld polycubes found of length %d\n", (long long int)n_generated, new_length);
+	printf("%lld polycubes found of length %d                      \n", (long long int)n_generated, new_length);
 	
 	double diff = difftime(time(NULL), start_time);
 	

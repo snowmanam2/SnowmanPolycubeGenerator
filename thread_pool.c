@@ -18,7 +18,7 @@ ThreadPool* thread_pool_create(int n_threads, int input_length, int output_lengt
 	retval->mode = OutputCount;
 	retval->reader = NULL;
 	
-	retval->next_update_index = -1;
+	retval->do_updates = 0;
 	
 	pthread_mutex_init(&retval->input_lock, NULL);
 	pthread_mutex_init(&retval->output_lock, NULL);
@@ -84,16 +84,30 @@ void thread_pool_set_output_writer(ThreadPool* pool, Writer* writer) {
 }
 
 void thread_pool_update_progress(ThreadPool* pool) {
-	if (pool->total_input_index >= pool->next_update_index) {
+	time_t now = time(NULL);
+	
+	double since_last = difftime(now, pool->last_update_time);
+
+	if (since_last >= 1) {
 		
-		double diff = difftime(time(NULL), pool->start_time);
+		double diff = difftime(now, pool->start_time);
 		double est_total = diff * pool->total_input_count / pool->total_input_index;
 		
-		printf("%d%% ... (est. %.f seconds remaining)\n", 
-			(int)(100 * pool->total_input_index / pool->total_input_count),
-			est_total - diff);
+		int percent = (int)(100 * pool->total_input_index / pool->total_input_count);
+		int bars = percent / 5;
+		
+		char progress[21];
+		progress[20] = 0;
+		
+		for (int i = 0; i < 20; i++) {
+			if (bars > i) progress[i] = '=';
+			else progress[i] = ' ';
+		}
+		
+		printf("  [%s] %d%% (est. %.f seconds remaining)\r", 
+			progress, percent, est_total - diff);
 		fflush(stdout);
-		pool->next_update_index += pool->total_input_count / 20;
+		pool->last_update_time = now;
 	}
 }
 
@@ -120,7 +134,7 @@ int thread_pool_fetch_seeds(ThreadPool* pool, Key* fetched_keys) {
 	pool->input_index += count;
 	pool->total_input_index += count;
 	
-	if (pool->next_update_index >= 0) {
+	if (pool->do_updates) {
 		thread_pool_update_progress(pool);
 	}
 		
@@ -149,8 +163,12 @@ void thread_pool_swap_write_keys(ThreadPool* pool) {
 }
 
 void thread_pool_enable_updates(ThreadPool* pool) {
-	pool->next_update_index = pool->input_count / 20;
+	pool->do_updates = 1;
 	pool->start_time = time(NULL);
+	pool->last_update_time = pool->start_time;
+	
+	printf("  Waiting for output data...\r");
+	fflush(stdout);
 }
 
 void thread_pool_push_output(ThreadPool* pool, Key* output_keys, int output_count) {
@@ -220,7 +238,7 @@ uint64_t thread_pool_run(ThreadPool* pool) {
 		thread_pool_write(pool, pool->output_index);
 	}
 	
-	return pool->output_count
-;}
+	return pool->output_count;
+}
 
 
