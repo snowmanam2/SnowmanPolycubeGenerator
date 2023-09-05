@@ -55,13 +55,12 @@ void worker_generate_level(GenerationData* gdata, uint8_t* spacemap) {
 	Key seed = gdata->seed_keys[gdata->index];
 	int new_length = gdata->new_length;
 		
-	int n_generated = generator_generate(seed, gdata->new_length, gdata->output_keys);
+	int n_generated = generator_generate(seed, gdata->new_length, gdata->output_keys, spacemap);
 	qsort(gdata->output_keys, n_generated, sizeof(Key), key_compare);
 	
 	int a = 0;
 	int last_output = 0;
-	Key last = key_get_comparison_maximum(new_length);
-			
+	Key last = key_get_comparison_maximum(new_length);	
 	for (int j = 0; j < n_generated; j++) {
 		if (key_compare(&last, &gdata->output_keys[j]) == 0 && last_output) continue;
 		
@@ -92,8 +91,9 @@ int worker_process_chunk(WorkerData* wdata, Key** output_keys) {
 	int levels = wdata->output_length - wdata->input_length;
 	*output_keys = gdata[levels - 1].output_keys;
 	
+	// Each level that has reached its end will need to be regenerated
+	// Determine how deep this goes by looking at the index of each level
 	int start = levels - 1;
-	
 	for (int i = start; i >= 0; i--) {
 		start = i;
 		
@@ -103,7 +103,9 @@ int worker_process_chunk(WorkerData* wdata, Key** output_keys) {
 		
 		if (i == 0) return -1;
 	}
-		
+	
+	// Process only the levels that need to be regenerated
+	// from the bottom up
 	for (int i = start; i < levels; i++) {
 		if (gdata[i].seed_count > 0) worker_generate_level(&gdata[i], wdata->spacemap);
 		else gdata[i].output_count = 0;

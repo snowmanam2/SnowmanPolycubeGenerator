@@ -41,61 +41,42 @@ int get_expand_face(Point point, Point dim) {
 	return -1;
 }
 
-void merge_candidates(Point* dest, Point* a, int n_a, Point* b, int n_b) {
-	int ia = 0;
-	int ib = 0;
+// Creates the candidates by placing all adjacent points, removing the existing points, and returning unique values
+int generator_create_candidates(Key key, size_t length, Point* candidates, uint8_t* spacemap) {
+	int full_count = 6 * length;
+	Point initial_candidates[full_count];
 	
-	Point va = a[0];
-	Point vb = b[0];
-	
-	for (int i = 0; i < n_a + n_b; i++) {
-		if (va < vb) {
-			dest[i] = va;
-			ia++;
-			
-			va = ia < n_a ? a[ia] : POINT_MAX;
-		} else {
-			dest[i] = vb;
-			ib++;
-			
-			vb = ib < n_b ? b[ib] : POINT_MAX;
-		}
-	}
-	
-}
-
-void generator_create_candidates(Key key, size_t length, Point* candidates) {
-	int len2 = 2 * length;
-	int len4 = 4 * length;
-	int len8 = 8 * length;
-	Point buffer[len8];
-	Point* b_addr[8];
-	Point* c_addr[6];
-	
-	int j = 0;
-	for (int i = 0; i < 8; i ++) {
-		b_addr[i] = &buffer[j];
-		j += length;
-	}
-	
+	// Set all possible points
 	int index = 0;
 	for (int face = 0; face < 6; face++) {
-		c_addr[face] = &candidates[index];
 		for (size_t i = 0; i < length; i++) {
-			candidates[index] = point_get_offset(key.data[i], face);
+			Point pt = point_get_offset(key.data[i], face);
+			initial_candidates[index] = pt;
+			spacemap[pt] = 1;
 			index++;
 		}
 	}
 	
-	merge_candidates(b_addr[0], c_addr[0], length, c_addr[1], length);
-	merge_candidates(b_addr[2], c_addr[2], length, c_addr[3], length);
-	merge_candidates(b_addr[4], b_addr[0],   len2, b_addr[2],   len2);
-	merge_candidates(b_addr[0], c_addr[4], length, c_addr[5], length);
-	merge_candidates(c_addr[0], b_addr[0],   len2, b_addr[4],   len4);
+	// Unset existing points
+	for (int i = 0; i < length; i++) {
+		spacemap[key.data[i]] = 0;
+	}
 	
+	// Retrieve candidates
+	index = 0;
+	for (int i = 0; i < full_count; i++) {
+		Point pt = initial_candidates[i];
+		if (spacemap[pt]) {
+			spacemap[pt] = 0;
+			candidates[index] = pt;
+			index++;
+		}
+	}
+	
+	return index;
 }
 
-// Generates relevant rotation keys for the given starting key
+// Generates relevant rotated keys for the given starting key
 // Returns a mask to test for which rotations were computed
 // We eliminate some rotations by looking at the dimensions
 // If we have a single maximum dimension, we use the 8 rotations from that axis
@@ -161,14 +142,14 @@ uint32_t generator_create_rotations(Key key, size_t length, Point dim, Key* rkey
 	return rotation_bits;
 }
 
-int generator_generate(Key key, size_t new_length, Key* output) {
+int generator_generate(Key key, size_t new_length, Key* output, uint8_t* spacemap) {
 	int output_index = 0;
 	size_t old_length = new_length - 1;
 	int n_candidates = old_length * 6;
 	Point candidates[n_candidates];
 	
 	// Generate initial candidates from existing key faces
-	generator_create_candidates(key, old_length, candidates);
+	n_candidates = generator_create_candidates(key, old_length, candidates, spacemap);
 	
 	// Generate all relevant rotated keys for inside dimensions
 	Point dimensions = key_get_dimensions(key);
@@ -186,31 +167,9 @@ int generator_generate(Key key, size_t new_length, Key* output) {
 	}
 	
 	// Iterate through candidates:
-	int key_index = 0;
-	Point last = POINT_MIN; // init to 0,0,0 because no candidate will ever equal that
 	Key max_key = key_get_comparison_maximum(new_length);
 	for (size_t i = 0; i < n_candidates; i++) {
 		Point candidate = candidates[i];
-		
-		// Skip if duplicate from last
-		if (last == candidate) continue;
-		
-		// If candidate is greater than current key index point, increment key index point
-		if (key_index < old_length) {
-			while(candidate > key.data[key_index] && key_index < old_length) {
-				key_index++;
-			}
-			
-			// keep track if the key_index exceeds the usable portion of the key data
-			int over = key_index >= old_length;
-			
-			// Skip if candidate equals current key index point (overlapping point)
-			// Ignore this check if we are over the usable portion of the key data
-			if(candidate == key.data[key_index] && !over) continue;
-		}
-		
-		// Begin processing candidate
-		last = candidate;
 		int face = get_expand_face(candidate, dimensions);
 		
 		uint32_t candidate_rotations_mask;

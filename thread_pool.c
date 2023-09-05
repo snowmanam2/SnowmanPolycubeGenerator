@@ -104,7 +104,7 @@ void thread_pool_update_progress(ThreadPool* pool) {
 			else progress[i] = ' ';
 		}
 		
-		printf("  [%s] %d%% (est. %.f seconds remaining)\r", 
+		printf("  [%s] %d%% (est. %.f seconds remaining)    \r", 
 			progress, percent, est_total - diff);
 		fflush(stdout);
 		pool->last_update_time = now;
@@ -133,10 +133,6 @@ int thread_pool_fetch_seeds(ThreadPool* pool, Key* fetched_keys) {
 	
 	pool->input_index += count;
 	pool->total_input_index += count;
-	
-	if (pool->do_updates) {
-		thread_pool_update_progress(pool);
-	}
 		
 	pthread_mutex_unlock(&pool->input_lock);
 	
@@ -206,6 +202,10 @@ void thread_pool_push_output(ThreadPool* pool, Key* output_keys, int output_coun
 			}
 		default:
 			break;
+	}
+	
+	if (pool->do_updates) {
+		thread_pool_update_progress(pool);
 	}
 	
 	pthread_mutex_unlock(&pool->output_lock);

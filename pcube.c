@@ -9,10 +9,6 @@
 // Notes:
 // This implementation currently doesn't support writing:
 // - Specific orientations
-// - Compression (perhaps add zlib later?)
-// - Count writing (LEB128 makes this harder than it needs to be...)
-// As such, this header is the same for all pcube files
-// TODO: Add read / write compressed data
 void pcube_write_header(OutputStream* stream, uint8_t compressed) {
 	uint8_t magic[4];
 	magic[0] = 0xCB;
@@ -32,7 +28,7 @@ void pcube_write_header(OutputStream* stream, uint8_t compressed) {
 
 // Writes the LEB128 encoded count
 // https://en.wikipedia.org/wiki/LEB128
-// This version actually writes a 64 bit fixed width.
+// This version actually writes a 64 bit fixed width as 10 bytes.
 // Most decoding algorithms seem to be able to read it, though it
 // isn't exactly formatted the way the standard is written.
 // The reason is to allocate the space at the front of the file
