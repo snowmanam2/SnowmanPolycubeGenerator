@@ -6,7 +6,7 @@
 Writer* writer_create(char* filename, WriterMode mode, uint8_t length, int compressed) {
 	Writer* retval = calloc(1, sizeof(Writer));
 	
-	if (mode == WriteBitFace) {
+	if (mode == WriteBitFace && compressed) {
 		printf("Compression not implemented in BitFace mode\n");
 		compressed = 0;
 	}

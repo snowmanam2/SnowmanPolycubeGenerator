@@ -15,7 +15,7 @@ size_t input_stream_read_compressed(InputStream* s, char* buffer, size_t size) {
 	size_t available = s->out_count - s->offset;
 	size_t copy_amount = available < size ? available : size;
 	
-	memcpy(buffer, &s->out_buffer[s->offset], size);
+	memcpy(buffer, &s->out_buffer[s->offset], copy_amount);
 	s->offset += copy_amount;
 	buffer_pos += copy_amount;
 	
