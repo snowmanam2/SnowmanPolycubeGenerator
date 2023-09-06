@@ -34,6 +34,7 @@ typedef struct {
 	pthread_mutex_t input_lock;
 	pthread_mutex_t output_lock;
 	pthread_mutex_t write_lock;
+	pthread_mutex_t progress_lock;
 } ThreadPool;
 
 ThreadPool* thread_pool_create(int n_threads, int input_length, int output_length);

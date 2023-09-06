@@ -23,6 +23,7 @@ ThreadPool* thread_pool_create(int n_threads, int input_length, int output_lengt
 	pthread_mutex_init(&retval->input_lock, NULL);
 	pthread_mutex_init(&retval->output_lock, NULL);
 	pthread_mutex_init(&retval->write_lock, NULL);
+	pthread_mutex_init(&retval->progress_lock, NULL);
 	
 	printf("Using thread pool with %d threads to generate n=%d from n=%d\n", 
 		n_threads, output_length, input_length);
@@ -91,9 +92,12 @@ void thread_pool_update_progress(ThreadPool* pool) {
 	if (since_last >= 1) {
 		
 		double diff = difftime(now, pool->start_time);
-		double est_total = diff * pool->total_input_count / pool->total_input_index;
 		
+		pthread_mutex_lock(&pool->progress_lock);
+		double est_total = diff * pool->total_input_count / pool->total_input_index;
 		int percent = (int)(100 * pool->total_input_index / pool->total_input_count);
+		pthread_mutex_unlock(&pool->progress_lock);
+		
 		int bars = percent / 5;
 		
 		char progress[21];
@@ -132,7 +136,10 @@ int thread_pool_fetch_seeds(ThreadPool* pool, Key* fetched_keys) {
 	memcpy(fetched_keys, &pool->input_keys[pool->input_index], count * sizeof(Key));
 	
 	pool->input_index += count;
+	
+	pthread_mutex_lock(&pool->progress_lock);
 	pool->total_input_index += count;
+	pthread_mutex_unlock(&pool->progress_lock);
 		
 	pthread_mutex_unlock(&pool->input_lock);
 	
