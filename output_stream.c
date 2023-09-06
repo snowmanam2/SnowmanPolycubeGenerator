@@ -76,8 +76,8 @@ OutputStream* output_stream_create(char* filename, int compressed) {
 		retval->strm.zalloc = Z_NULL;
 		retval->strm.zfree = Z_NULL;
 		retval->strm.opaque = Z_NULL;
-		int result = deflateInit2(&retval->strm, Z_DEFAULT_COMPRESSION, Z_DEFLATED,
-					15 | 16, 8, Z_DEFAULT_STRATEGY);
+		int result = deflateInit2(&retval->strm, 2, Z_DEFLATED,
+					15 | 16, 9, Z_DEFAULT_STRATEGY);
 		if (result != Z_OK) {
 			printf("zlib init failure\n");
 			fflush(stdout);
