@@ -6,6 +6,11 @@
 Writer* writer_create(char* filename, WriterMode mode, uint8_t length, int compressed) {
 	Writer* retval = calloc(1, sizeof(Writer));
 	
+	if (mode == WriteBitFace) {
+		printf("Compression not implemented in BitFace mode\n");
+		compressed = 0;
+	}
+	
 	retval->stream = output_stream_create(filename, compressed);
 	retval->mode = mode;
 	retval->spacemap = calloc(POINT_SPACEMAP_SIZE, sizeof(uint8_t));
@@ -13,7 +18,6 @@ Writer* writer_create(char* filename, WriterMode mode, uint8_t length, int compr
 	switch(mode) {
 		case WriteBitFace:
 			printf("Starting file writer in BitFace mode.\n");
-			if (compressed) printf("Compression not implemented in BitFace mode\n");
 			bitface_write_n(retval->stream, length);
 			break;
 		case WritePCube:
