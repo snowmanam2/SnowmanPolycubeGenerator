@@ -91,6 +91,52 @@ void pcube_write_keys(OutputStream* stream, Key* keys, uint64_t count) {
 	}
 }
 
+uint64_t pcube_pack_key(void* raw_data, Key key) {
+	uint8_t* buffer = raw_data;
+	Point dim_pt = key_get_dimensions(key);
+	
+	uint8_t* dim = buffer;
+	dim[0] = POINT_GET_X(dim_pt);
+	dim[1] = POINT_GET_Y(dim_pt);
+	dim[2] = POINT_GET_Z(dim_pt);
+	
+	uint16_t offsets[3];
+	offsets[0] = dim[1] * dim[2];
+	offsets[1] = dim[2];
+	offsets[2] = 1;
+	
+	uint8_t bits = dim[0] * dim[1] * dim[2];
+	uint8_t bytes = bits >> 3;
+	bytes += bits > (bytes << 3);
+	uint8_t* data = &buffer[3];
+	memset(data, 0, bytes);
+	
+	// Accounts for the base (1,1,1) base point
+	uint16_t base_offset = offsets[0] + offsets[1] + offsets[2];
+	
+	for (int i = 0; i < key.length; i++) {
+		Point pt = key.data[i];
+		uint16_t position = offsets[0] * POINT_GET_X(pt) + offsets[1] * POINT_GET_Y(pt) + POINT_GET_Z(pt) - base_offset;
+		uint8_t byte = position >> 3;
+		uint8_t bit = position - (byte << 3);
+		
+		data[byte] |= 1 << bit;
+	}
+	
+	return 3 + bytes;
+}
+uint64_t pcube_pack_keys(void* raw_data, Key* keys, uint64_t count) {
+	uint64_t offset = 0;
+	
+	uint8_t* data = raw_data;
+	
+	for (uint64_t i = 0; i < count; i++) {
+		offset += pcube_pack_key(&data[offset], keys[i]);
+	}
+	
+	return offset;
+}
+
 int pcube_read_header(InputStream* stream) {
 	uint8_t magic[4];
 	if (!input_stream_read_raw(stream, magic, 4)) return 0;

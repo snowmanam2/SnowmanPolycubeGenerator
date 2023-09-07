@@ -21,4 +21,8 @@ void writer_destroy(Writer* writer);
 void writer_write_keys(Writer* writer, Key* output_keys, uint64_t count);
 void writer_write_count(Writer* writer, uint64_t count);
 
+off_t writer_get_offset(Writer* writer);
+int writer_get_fd(Writer* writer);
+WriterMode writer_get_mode(Writer* writer);
+
 #endif

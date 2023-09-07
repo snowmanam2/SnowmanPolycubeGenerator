@@ -22,4 +22,7 @@ void output_stream_seek(OutputStream* stream, long offset);
 void output_stream_write_raw(OutputStream* stream, void* buffer, size_t size);
 void output_stream_write(OutputStream* stream, void* buffer, size_t size);
 
+off_t output_stream_get_offset(OutputStream* stream);
+int output_stream_get_fd(OutputStream* stream);
+
 #endif

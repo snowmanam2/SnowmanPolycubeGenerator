@@ -4,6 +4,7 @@
 
 #include "thread_pool.h"
 #include "worker.h"
+#include "packer.h"
 
 #define OUTPUT_CACHE 100000
 
@@ -175,8 +176,8 @@ void thread_pool_enable_updates(ThreadPool* pool) {
 }
 
 void thread_pool_push_output(ThreadPool* pool, Key* output_keys, int output_count) {
-	int do_write = 0;
-	uint64_t write_count = 0;
+	//int do_write = 0;
+	//uint64_t write_count = 0;
 	
 	if (output_count == 0) return;
 	
@@ -191,9 +192,9 @@ void thread_pool_push_output(ThreadPool* pool, Key* output_keys, int output_coun
 			pool->output_count += output_count;
 			break;
 		case OutputWriter:
-			memcpy(&pool->output_keys[pool->output_index], output_keys, output_count * sizeof(Key));
+			//memcpy(&pool->output_keys[pool->output_index], output_keys, output_count * sizeof(Key));
 			pool->output_count += output_count;
-			pool->output_index += output_count;
+			/*pool->output_index += output_count;
 			
 			if (pool->output_index > OUTPUT_CACHE) {
 				do_write = 1;
@@ -206,7 +207,8 @@ void thread_pool_push_output(ThreadPool* pool, Key* output_keys, int output_coun
 				
 				pool->output_index = 0;
 				
-			}
+			}*/
+			break;
 		default:
 			break;
 	}
@@ -217,27 +219,51 @@ void thread_pool_push_output(ThreadPool* pool, Key* output_keys, int output_coun
 	
 	pthread_mutex_unlock(&pool->output_lock);
 	
-	if (do_write) {
+	/*if (do_write) {
 		thread_pool_write(pool, write_count);
 		
 		pthread_mutex_unlock(&pool->write_lock);
-	}
+	}*/
+}
+
+off_t thread_pool_update_offset(ThreadPool* pool, size_t segment_size) {
+	off_t retval;
+	
+	pthread_mutex_lock(&pool->write_lock);
+	
+	retval = pool->file_offset;
+	pool->file_offset += segment_size;
+	
+	pthread_mutex_unlock(&pool->write_lock);
+	
+	return retval;
 }
 
 uint64_t thread_pool_run(ThreadPool* pool) {
+	int do_output = 0;
+	int fd = 0;
+	WriterMode wmode = WritePCube;
+	if (pool->mode == OutputWriter) {
+		do_output = 1;
+		fd = writer_get_fd(pool->writer);
+		pool->file_offset = writer_get_offset(pool->writer);
+		wmode = writer_get_mode(pool->writer);
+	}
+
 	pthread_t threads[pool->n_threads];
-	WorkerData worker_data[pool->n_threads];
+	WorkerData* worker_data[pool->n_threads];
 	
 	for (int i = 0; i < pool->n_threads; i++) {
-		worker_create(&worker_data[i], pool, pool->input_length, pool->output_length);
 	
-		pthread_create(&threads[i], NULL, worker_thread_function, &worker_data[i]);
+		worker_data[i] = worker_create(pool, pool->input_length, pool->output_length, do_output, fd, wmode);
+	
+		pthread_create(&threads[i], NULL, worker_thread_function, worker_data[i]);
 	}
 	
 	for (int i = 0; i < pool->n_threads; i++) {
 		pthread_join(threads[i], NULL);
 		
-		worker_destroy(&worker_data[i]);
+		worker_destroy(worker_data[i]);
 	}
 	
 	if (pool->mode == OutputWriter) {

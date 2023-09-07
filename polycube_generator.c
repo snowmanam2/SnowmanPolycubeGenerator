@@ -199,7 +199,10 @@ int main (int argc, char** argv) {
 		n_generated = thread_pool_run(pool);
 		
 		thread_pool_destroy(pool);
+		
+		printf("%lld intermediate polycubes found of length %d\n", (long long int)n_generated, target_length);
 	}
+	
 	
 	if (new_length > SINGLE_THREAD_LENGTH) {
 		int use_file = reader != NULL && input_length >= SINGLE_THREAD_LENGTH;

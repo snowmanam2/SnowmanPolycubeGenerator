@@ -83,8 +83,10 @@ int get_opposite_face(int face) {
 // 
 // Currently this reduces space consumption to 8 bytes or less for n=13
 // (Note the output contains exactly n-1 set bits with the rest left zero)
-size_t bitface_pack(Key key, uint8_t length, char* buffer, uint8_t* bitface_places) {
+uint64_t bitface_pack_key(void* raw_data, Key key, uint8_t* bitface_places) {
+	char* buffer = raw_data;
 	
+	uint8_t length = key.length;
 	uint8_t point_index = 1;
 	int point_keys[length]; // place map keys based on order of point discovery
 	point_keys[0] = key.data[0];
@@ -135,13 +137,31 @@ size_t bitface_pack(Key key, uint8_t length, char* buffer, uint8_t* bitface_plac
 	return bit;
 }
 
+uint64_t bitface_pack_keys(void* raw_data, Key* keys, uint64_t count, uint8_t* places) {
+	uint8_t* buffer = raw_data;
+	if (count == 0) return 0;
+	
+	uint64_t increment = bitface_key_size(keys[0].length);
+	
+	memset(raw_data, 0, count * increment);
+	
+	uint64_t offset = 0;	
+	for (uint64_t i = 0; i < count; i++) {
+		bitface_pack_key(&buffer[offset], keys[i], places);
+		offset += increment;
+	}
+	
+	return offset;
+}
 
 // This bitface unpack method assumes the first point is (1,1,1)
 // From there we rebuild the point list by iterating through
 // all the faces as in the bitface method.
 // After we have these points, we normalize and sort them
 // to conform to the "key" layout used in generation
-Key bitface_unpack(char* buffer, uint8_t length) {
+Key bitface_unpack_key(void* raw_data, uint8_t length) {
+	char* buffer = raw_data;
+	
 	Key retval;
 	retval.length = length;
 	
@@ -201,7 +221,7 @@ uint64_t bitface_read_keys(InputStream* stream, Key* keys, uint8_t length, uint6
 	size_t n_read = read_count / raw_size;
 	
 	for (uint64_t i = 0; i < n_read; i++) {	
-		keys[i] = bitface_unpack(&buffer[i * raw_size], length);
+		keys[i] = bitface_unpack_key(&buffer[i * raw_size], length);
 	}
 	
 	return n_read;
@@ -227,7 +247,7 @@ void bitface_write_keys(OutputStream* stream, Key* keys, uint64_t count, uint8_t
 	for (uint64_t i = 0; i < count; i++) {
 		memset(buffer, 0, raw_size);
 		
-		bitface_pack(keys[i], length, buffer, places);
+		bitface_pack_key(buffer, keys[i], places);
 		
 		output_stream_write(stream, buffer, raw_size);
 	}
@@ -236,3 +256,5 @@ void bitface_write_keys(OutputStream* stream, Key* keys, uint64_t count, uint8_t
 void bitface_write_n(OutputStream* stream, uint8_t n) {
 	output_stream_write_raw(stream, &n, 1);
 }
+
+

@@ -128,3 +128,11 @@ void output_stream_write(OutputStream* s, void* buffer, size_t size) {
 		output_stream_write_compressed(s, buffer, size);
 	}
 }
+
+off_t output_stream_get_offset(OutputStream* s) {
+	return ftello(s->file);
+}
+
+int output_stream_get_fd(OutputStream* s) {
+	return fileno(s->file);
+}

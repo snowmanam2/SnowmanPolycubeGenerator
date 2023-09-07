@@ -60,3 +60,20 @@ void writer_write_count(Writer* writer, uint64_t count) {
 			break;
 	}
 }
+
+void writer_write_data(Writer* writer, void* data, size_t size) {
+	output_stream_write(writer->stream, data, size);
+}
+
+off_t writer_get_offset(Writer* writer) {
+	return output_stream_get_offset(writer->stream);
+}
+
+int writer_get_fd(Writer* writer) {
+	return output_stream_get_fd(writer->stream);
+}
+
+WriterMode writer_get_mode(Writer* writer) {
+	return writer->mode;
+}
+

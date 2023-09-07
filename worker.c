@@ -5,7 +5,8 @@
 #include "generator.h"
 #include "point.h"
 
-void worker_create(WorkerData* wdata, ThreadPool* pool, int input_length, int output_length) {
+WorkerData* worker_create(ThreadPool* pool, int input_length, int output_length, int do_write, int fd, WriterMode mode) {
+	WorkerData* wdata = calloc(1, sizeof(WorkerData));	
 	
 	wdata->pool = pool;
 	wdata->input_length = input_length;
@@ -13,10 +14,21 @@ void worker_create(WorkerData* wdata, ThreadPool* pool, int input_length, int ou
 	wdata->total = 0;
 	
 	wdata->spacemap = calloc(POINT_SPACEMAP_SIZE, sizeof(uint8_t));
+	
+	wdata->do_write = do_write;
+	wdata->fd = fd;
+	wdata->data_size = 0;
+	if (wdata->do_write) {
+		wdata->packer = packer_create(mode, wdata->spacemap);
+	}
+	
+	return wdata;
 }
 
 void worker_destroy(WorkerData* wdata) {
+	if (wdata->do_write) packer_destroy(wdata->packer);
 	free(wdata->spacemap);
+	free(wdata);
 }
 
 void worker_generation_data_create(WorkerData* wdata) {
@@ -118,6 +130,14 @@ int worker_process_chunk(WorkerData* wdata, Key** output_keys) {
 	return gdata[levels - 1].output_count;
 }
 
+void worker_write_data(WorkerData* wdata) {
+	off_t write_offset = thread_pool_update_offset(wdata->pool, wdata->data_size);
+					
+	ssize_t result = pwrite(wdata->fd, wdata->output_data, wdata->data_size, write_offset);
+			
+	wdata->data_size = 0;
+}
+
 void* worker_thread_function(void* arg) {
 	WorkerData* wdata = (WorkerData*) arg;
 	worker_generation_data_create(wdata);
@@ -138,7 +158,16 @@ void* worker_thread_function(void* arg) {
 			if (result < 0) break;
 			
 			thread_pool_push_output(wdata->pool, output_keys, result);
+			
+			if (wdata->do_write) {
+				wdata->data_size += packer_pack_keys(wdata->packer, &wdata->output_data[wdata->data_size], output_keys, result);
+				if (wdata->data_size >= WORKER_OUTPUT_CACHE) {
+					worker_write_data(wdata);
+				}
+			}
 		}
+		
+		if (wdata->do_write) worker_write_data(wdata);
 	}
 	
 	worker_generation_data_destroy(wdata);
