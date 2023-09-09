@@ -36,7 +36,6 @@ void thread_pool_destroy(ThreadPool* pool) {
 	if (pool->mode == OutputWriter) {
 		free(pool->output_keys);
 		free(pool->write_keys);
-		free(pool->spacemap);
 		free(pool->results);
 	}
 	
@@ -80,8 +79,6 @@ void thread_pool_set_output_writer(ThreadPool* pool, Writer* writer) {
 	
 	pool->output_keys = calloc(OUTPUT_CACHE + 1000, sizeof(Key));
 	pool->write_keys = calloc(OUTPUT_CACHE + 1000, sizeof(Key));
-	
-	pool->spacemap = calloc(POINT_SPACEMAP_SIZE, sizeof(uint8_t));
 	
 	pool->output_index = 0;
 }

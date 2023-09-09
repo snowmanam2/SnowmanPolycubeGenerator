@@ -23,7 +23,6 @@ typedef struct {
 	// File I/O
 	Reader* reader;
 	Writer* writer;
-	uint8_t* spacemap; // Spatial map allocated specifically for file I/O
 	
 	// Output data
 	int output_length; // Output key length
