@@ -3,11 +3,14 @@
 #include "bitface.h"
 
 Reader* reader_create(char* filename, ReaderMode mode) {
-
+	InputStream* stream = input_stream_create(filename);
+	
+	if (stream == NULL) return NULL;
+	
 	Reader* retval = calloc(1, sizeof(Reader));
 	retval->mode = mode;
 	retval->count = 0;
-	retval->stream = input_stream_create(filename);
+	retval->stream = stream;
 	
 	switch (mode) {
 		case ReadBitFace:

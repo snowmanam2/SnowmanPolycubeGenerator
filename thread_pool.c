@@ -17,6 +17,7 @@ ThreadPool* thread_pool_create(int n_threads, int input_length, int output_lengt
 	retval->output_length = output_length;
 	retval->mode = OutputCount;
 	retval->reader = NULL;
+	retval->results = calloc(output_length - input_length, sizeof(uint64_t));
 	
 	retval->do_updates = 0;
 	
@@ -36,6 +37,7 @@ void thread_pool_destroy(ThreadPool* pool) {
 		free(pool->output_keys);
 		free(pool->write_keys);
 		free(pool->spacemap);
+		free(pool->results);
 	}
 	
 	if (pool->reader != NULL) {
@@ -224,20 +226,30 @@ void thread_pool_push_output(ThreadPool* pool, Key* output_keys, int output_coun
 	}
 }
 
+uint64_t thread_pool_get_total(ThreadPool* pool, int index) {	
+	return pool->results[index];
+}
+
 uint64_t thread_pool_run(ThreadPool* pool) {
 	pthread_t threads[pool->n_threads];
-	WorkerData worker_data[pool->n_threads];
+	WorkerData* worker_data[pool->n_threads];
 	
 	for (int i = 0; i < pool->n_threads; i++) {
-		worker_create(&worker_data[i], pool, pool->input_length, pool->output_length);
+		worker_data[i] = worker_create(pool, pool->input_length, pool->output_length);
 	
-		pthread_create(&threads[i], NULL, worker_thread_function, &worker_data[i]);
+		pthread_create(&threads[i], NULL, worker_thread_function, worker_data[i]);
 	}
 	
 	for (int i = 0; i < pool->n_threads; i++) {
 		pthread_join(threads[i], NULL);
 		
-		worker_destroy(&worker_data[i]);
+		int count = pool->output_length - pool->input_length;
+		
+		for (int j = 0; j < count; j++) {
+			pool->results[j] += worker_get_total(worker_data[i], j);
+		}
+		
+		worker_destroy(worker_data[i]);
 	}
 	
 	if (pool->mode == OutputWriter) {

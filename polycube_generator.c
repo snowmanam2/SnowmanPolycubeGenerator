@@ -102,6 +102,7 @@ int main (int argc, char** argv) {
 	Reader* reader = NULL;
 		
 	int n_threads = N_THREADS;
+	int output_all = 0;
 	
 	for (int i = 2; i < argc; i++) {
 		if(strcmp(argv[i], "-t") == 0) {
@@ -121,7 +122,6 @@ int main (int argc, char** argv) {
 			if (value == NULL) return 0;
 			
 			reader = build_reader(opt, value);
-			
 			if (reader == NULL) return 0;
 		} else if (strncmp(argv[i], "-o", 2) == 0) {
 			char* opt = argv[i];
@@ -132,6 +132,8 @@ int main (int argc, char** argv) {
 			writer = build_writer(opt, value, new_length);
 			
 			if (writer == NULL) return 0;
+		} else if (strcmp(argv[i], "-a") == 0) {
+			output_all = 1;
 		} else {
 			printf("Unrecognized argument \"%s\"\n", argv[i]);
 			print_usage();
@@ -174,8 +176,8 @@ int main (int argc, char** argv) {
 		
 		ThreadPool* pool = thread_pool_create(1, start_length, target_length);
 		
+		Key start;
 		if (reader == NULL) {
-			Key start;
 			Point p = point_from_coords(1,1,1);
 			
 			start.data[0] = p;
@@ -197,6 +199,13 @@ int main (int argc, char** argv) {
 		}
 		
 		n_generated = thread_pool_run(pool);
+		
+		if (output_all) {
+			for (int i = 0; i < target_length - start_length; i++) {
+				printf("%lld polycubes found of length %d                      \n", 
+					(long long int)thread_pool_get_total(pool, i), i + start_length + 1);
+			}
+		}
 		
 		thread_pool_destroy(pool);
 	}
@@ -220,10 +229,18 @@ int main (int argc, char** argv) {
 		}
 		
 		n_generated = thread_pool_run(pool);
+		
+		if (output_all) {
+			for (int i = 0; i < new_length - start_length; i++) {
+				printf("%lld polycubes found of length %d                      \n", 
+					(long long int)thread_pool_get_total(pool, i), i + start_length + 1);
+			}
+		}
+		
 		thread_pool_destroy(pool);
 	}
 	
-	printf("%lld polycubes found of length %d                      \n", (long long int)n_generated, new_length);
+	if (!output_all) printf("%lld polycubes found of length %d                      \n", (long long int)n_generated, new_length);
 	
 	double diff = difftime(time(NULL), start_time);
 	

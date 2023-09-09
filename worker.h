@@ -16,6 +16,7 @@ typedef struct {
 	int output_count;
 	int new_length;
 	int index;
+	uint64_t total;
 } GenerationData;
 
 typedef struct {
@@ -25,10 +26,9 @@ typedef struct {
 	uint8_t* spacemap;
 	ThreadPool* pool;
 	int cache_count;
-	uint64_t total;
 } WorkerData;
 
-void worker_create(WorkerData* wdata, ThreadPool* pool, int input_length, int output_length);
+WorkerData* worker_create(ThreadPool* pool, int input_length, int output_length);
 void worker_destroy(WorkerData* wdata);
 
 void worker_generation_data_create(WorkerData* wdata);
@@ -36,5 +36,7 @@ void worker_generation_data_destroy(WorkerData* wdata);
 
 int worker_process_chunk(WorkerData* wdata, Key** output_keys);
 void* worker_thread_function (void* arg);
+
+uint64_t worker_get_total(WorkerData* wdata, int index);
 
 #endif

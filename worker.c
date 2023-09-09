@@ -5,18 +5,25 @@
 #include "generator.h"
 #include "point.h"
 
-void worker_create(WorkerData* wdata, ThreadPool* pool, int input_length, int output_length) {
+WorkerData* worker_create(ThreadPool* pool, int input_length, int output_length) {
+	WorkerData* wdata = calloc(1, sizeof(WorkerData));
 	
 	wdata->pool = pool;
 	wdata->input_length = input_length;
 	wdata->output_length = output_length;
-	wdata->total = 0;
 	
 	wdata->spacemap = calloc(POINT_SPACEMAP_SIZE, sizeof(uint8_t));
+	
+	worker_generation_data_create(wdata);
+	
+	return wdata;
 }
 
 void worker_destroy(WorkerData* wdata) {
 	free(wdata->spacemap);
+	worker_generation_data_destroy(wdata);
+	
+	free(wdata);
 }
 
 void worker_generation_data_create(WorkerData* wdata) {
@@ -26,6 +33,7 @@ void worker_generation_data_create(WorkerData* wdata) {
 	
 	for (int i = 0; i < count; i++) {
 		retval[i].new_length = wdata->input_length + i + 1;
+		retval[i].total = 0;
 		
 		if (i > 0) retval[i].seed_keys = retval[i-1].output_keys;
 	}
@@ -80,6 +88,7 @@ void worker_generate_level(GenerationData* gdata, uint8_t* spacemap) {
 		
 	gdata->output_count = a;
 	gdata->index++;
+	gdata->total += a;
 }
 
 // This function processes a single polycube
@@ -118,9 +127,13 @@ int worker_process_chunk(WorkerData* wdata, Key** output_keys) {
 	return gdata[levels - 1].output_count;
 }
 
+uint64_t worker_get_total(WorkerData* wdata, int index) {;
+	
+	return wdata->generation_data[index].total;
+}
+
 void* worker_thread_function(void* arg) {
 	WorkerData* wdata = (WorkerData*) arg;
-	worker_generation_data_create(wdata);
 	Key* output_keys = NULL;
 	
 	while (1) {
@@ -140,7 +153,6 @@ void* worker_thread_function(void* arg) {
 			thread_pool_push_output(wdata->pool, output_keys, result);
 		}
 	}
-	
-	worker_generation_data_destroy(wdata);
+
 	pthread_exit(NULL);
 }
