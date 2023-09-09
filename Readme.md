@@ -16,6 +16,11 @@ The following returns the number of 3D polycubes of length 5:
 ./polycube_generator 5
 ```
 
+The following returns the number of 3D polycubes of each length up to 8:
+```bash
+./polycube_generator 8 -a
+```
+
 For lengths larger than 9, the "-t" option allows specification of a number of compute threads. The default is 16 threads, shown here with 10 threads.
 ```bash
 ./polycube_generator 13 -n 10
@@ -107,6 +112,7 @@ Example n=4:
 - Cross-platform compatibility (maybe use CMake).
 - CLI is rather basic.
 - Increasing I/O depth and/or moving compression & packing methods to threads might help with cache file write speed.
+- The 6 expansion rotation sets might be faster to compute if calculated as offsets relative to the main set or each other.
 
 ## License
 
