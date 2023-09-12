@@ -116,7 +116,9 @@ uint32_t generator_create_rotations(Key key, size_t length, Point dim, Key* rkey
 		pdata[i] = point_get_data(key.data[i], dim);
 	}
 	
-	for (size_t i = 0; i < NUM_ROTATIONS; i++) {
+	rkeys[0] = key;
+	
+	for (size_t i = 1; i < NUM_ROTATIONS; i++) {
 		if (!(rotation_bits & (1 << i))) continue;
 		
 		Point* kdata = rkeys[i].data;
