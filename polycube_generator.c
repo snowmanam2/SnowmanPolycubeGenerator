@@ -12,6 +12,47 @@
 #define SINGLE_THREAD_LENGTH 9
 #define N_THREADS 16
 
+typedef struct {
+	FILE* results_file;
+	int result_count;
+	int result_lengths[32];
+	uint64_t results[32];
+} Results;
+
+Results* results_create(char* filename) {
+	FILE* rfile = fopen(filename, "w");
+	if (rfile == NULL) return NULL;
+
+	Results* r = calloc(1, sizeof(Results));
+	r->results_file = rfile;
+	return r;
+}
+
+void results_destroy(Results* r) {
+	if (r == NULL) return;
+	free(r);
+}
+
+void results_add(Results* r, int length, uint64_t result) {
+	if (r == NULL) return;
+	
+	int index = r->result_count;
+	r->result_lengths[index] = length;
+	r->results[index] = result;
+	r->result_count++;
+}
+
+void results_write(Results* r) {
+	if (r ==  NULL) return;
+	
+	for (int i = 0; i < r->result_count; i++) {
+		fprintf(r->results_file, "%d\n", r->result_lengths[i]);
+		fprintf(r->results_file, "%lld\n", (long long int)r->results[i]);
+	}
+	
+	fclose(r->results_file);
+}
+
 void print_usage() {
 	printf("Usage: polycube_generator <size> [options...]\n");
 }
@@ -88,6 +129,12 @@ int main (int argc, char** argv) {
 	time_t start_time = time(NULL);
 	
 	int new_length;
+	Writer* writer = NULL;
+	Reader* reader = NULL;
+	int n_threads = N_THREADS;
+	int output_all = 0;
+	
+	Results* results = NULL;
 	sscanf(argv[1], "%d", &new_length);
 	
 	if (new_length < 3) {
@@ -97,12 +144,6 @@ int main (int argc, char** argv) {
 		printf("Length above 30 not implemented\n");
 		return 0;
 	}
-	
-	Writer* writer = NULL;
-	Reader* reader = NULL;
-		
-	int n_threads = N_THREADS;
-	int output_all = 0;
 	
 	for (int i = 2; i < argc; i++) {
 		if(strcmp(argv[i], "-t") == 0) {
@@ -133,6 +174,13 @@ int main (int argc, char** argv) {
 			
 			if (writer == NULL) return 0;
 		} else if (strcmp(argv[i], "-a") == 0) {
+			output_all = 1;
+		} else if (strcmp(argv[i], "-r") == 0) {
+			char* value = get_value(&i, argc, argv);
+			
+			if (value == NULL) return 0;
+			
+			results = results_create(value);
 			output_all = 1;
 		} else {
 			printf("Unrecognized argument \"%s\"\n", argv[i]);
@@ -202,8 +250,12 @@ int main (int argc, char** argv) {
 		
 		if (output_all) {
 			for (int i = 0; i < target_length - start_length; i++) {
+				int length = i + start_length + 1;
+				uint64_t result = thread_pool_get_total(pool, i);
 				printf("%lld polycubes found of length %d                      \n", 
-					(long long int)thread_pool_get_total(pool, i), i + start_length + 1);
+					(long long int)result, i + start_length + 1);
+				
+				results_add(results, length, result);
 			}
 		}
 		
@@ -232,8 +284,12 @@ int main (int argc, char** argv) {
 		
 		if (output_all) {
 			for (int i = 0; i < new_length - start_length; i++) {
+				int length = i + start_length + 1;
+				uint64_t result = thread_pool_get_total(pool, i);
 				printf("%lld polycubes found of length %d                      \n", 
-					(long long int)thread_pool_get_total(pool, i), i + start_length + 1);
+					(long long int)result, i + start_length + 1);
+				
+				results_add(results, length, result);
 			}
 		}
 		
@@ -245,6 +301,9 @@ int main (int argc, char** argv) {
 	double diff = difftime(time(NULL), start_time);
 	
 	printf("%.f seconds elapsed\n", diff);
+	
+	results_write(results);
+	results_destroy(results);
 	
 	free(output_keys);
 	
