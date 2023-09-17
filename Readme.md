@@ -46,6 +46,32 @@ Cache files can be generated in a smaller "bitface" format by changing the exten
 ./polycube_generator 5 -o cubes5.dat
 ```
 
+## Using the Job Processor
+The `job_processor.py` file is used as a client to a [SnowmanPolycubeServer](https://github.com/snowmanam2/SnowmanPolycubeServer) instance. By default, it continuously processes segments of a shared seed file and returns the number of polycubes found.
+
+The only non-standard library used is [requests](https://pypi.org/project/requests/).
+
+Before starting, set the configuration in `job_processor.cfg`. You need to set up the server name, how many hardware threads are available, the name of the command - such as polycube_generator.exe on Windows, and the name which you want to be called in your contribution:
+```
+[Job]
+job_server = https://snowman-polycube-server.vercel.app/jobs/n18/job-tickets
+job_folder = jobs
+
+[General]
+threads = 12
+cmd = ./polycube_generator
+contributor_name = snowmanam2
+```
+
+Note the `job_server` must point to the proper `job-tickets` node of an active job on the server, as configured by the server operator. 
+
+Once the configuration is saved (assuming the main executable was built as noted in the "Compiling" section), you can start the processor with:
+```bash
+python job_processor.py
+```
+
+The processor will run continuously until the server runs out of segments to compute. You can kill the process if needed, though all progress on the current ticket will be lost. The server will reallocate the dropped segment after the configured timeout has been reached.
+
 ## Algorithms
 
 Basics:
